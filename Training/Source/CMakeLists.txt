@@ -56,6 +56,7 @@ set(SOURCE
     TrainModel.h 
     TrainModel.cpp 
     CIFAR100DataSet.h 
+    ProgressBar.h 
     main.cpp
 )
 add_executable(${PROJECT_NAME} 

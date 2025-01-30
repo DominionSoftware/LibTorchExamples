@@ -1,14 +1,42 @@
 #include "TrainModel.h"
 #include "IDataSet.h"
 
+#include <iomanip>
+
+void printTensorStats(const torch::Tensor& tensor, const std::string& name) {
+    auto cpu_tensor = tensor.cpu();  // Move to CPU for printing
+    std::cout << name << " stats:" << std::endl
+        << "  Shape: " << cpu_tensor.sizes() << std::endl
+        << "  Range: [" << cpu_tensor.min().item<float>() << ", "
+        << cpu_tensor.max().item<float>() << "]" << std::endl
+        << "  Mean: " << cpu_tensor.mean().item<float>() << std::endl
+        << "  Std: " << cpu_tensor.std().item<float>() << std::endl;
+    if (cpu_tensor.isnan().any().item<bool>()) {
+        std::cout << "  WARNING: Contains NaN values!" << std::endl;
+    }
+    if (cpu_tensor.isinf().any().item<bool>()) {
+        std::cout << "  WARNING: Contains Inf values!" << std::endl;
+    }
+}
 
 void TrainModel(std::shared_ptr<IDataSet> trainData, std::shared_ptr<IDataSet> testData,
-				size_t num_epochs,double learningRate,size_t logInterval)
+    size_t num_epochs, double learningRate, size_t logInterval)
 {
-	auto img_dims = trainData->getInputShape();
-	std::cout << "Image dimensions: [" << img_dims[0] << ", "
-		<< img_dims[1] << ", " << img_dims[2] << "]" << std::endl;
+    // Check for CUDA availability
+    torch::Device device(torch::kCPU);
+    if (torch::cuda::is_available()) {
+        std::cout << "CUDA is available! Training on GPU." << std::endl;
+        device = torch::Device(torch::kCUDA);
+    }
 
+    auto img_dims = trainData->getInputShape();
+    std::cout << "Starting training with:" << std::endl
+        << "Device: " << (device.is_cuda() ? "GPU" : "CPU") << std::endl
+        << "Learning rate: " << learningRate << std::endl
+        << "Number of epochs: " << num_epochs << std::endl
+        << "Image dimensions: [" << img_dims[0] << ", "
+        << img_dims[1] << ", " << img_dims[2] << "]" << std::endl
+        << "Number of classes: " << trainData->getNumClasses() << std::endl;
 
     torch::nn::Sequential model(
         torch::nn::Conv2d(torch::nn::Conv2dOptions(img_dims[0], 32, 3).padding(1)),
@@ -30,31 +58,67 @@ void TrainModel(std::shared_ptr<IDataSet> trainData, std::shared_ptr<IDataSet> t
         torch::nn::Linear(512, trainData->getNumClasses())
     );
 
-    torch::optim::Adam optimizer(model->parameters(), learningRate);
-
+    // Move model to GPU if available
+    model->to(device);
+    torch::optim::AdamW optimizer(model->parameters(), learningRate);
+   // torch::optim::Adam optimizer(model->parameters(), learningRate);
     auto trainLoader = trainData->getDataLoader();
     auto testLoader = testData->getDataLoader();
 
+    // Print initial parameter stats
+    std::cout << "\nInitial model parameters:" << std::endl;
+    for (const auto& p : model->parameters()) {
+        printTensorStats(p, "Parameter");
+    }
 
     model->train();
-
-
     for (size_t epoch = 0; epoch < num_epochs; ++epoch) {
         size_t batch_idx = 0;
         float epoch_loss = 0.0f;
         size_t num_correct = 0;
         size_t num_samples = 0;
 
-        for (auto& batch : *trainLoader) {
-            auto data = batch[0];
-            auto target = batch[1].target.squeeze();
+        std::cout << "\nStarting epoch " << epoch << std::endl;
 
-            // Forward pass
+        for (auto& batch : *trainLoader) {
+            std::vector<torch::Tensor> data_vec, target_vec;
+            for (const auto& example : batch) {
+                data_vec.push_back(example.data);
+                target_vec.push_back(example.target);
+            }
+
+            auto data = torch::stack(data_vec).to(device);
+            auto target = torch::stack(target_vec).to(device);
+
+            if (batch_idx == 0) {
+                printTensorStats(data, "Input batch");
+                std::cout << "Target values: " << target.cpu() << std::endl;
+                // Count unique values manually
+                auto acc = std::set<int64_t>();
+                for (int64_t i = 0; i < target.numel(); ++i) {
+                    acc.insert(target[i].item<int64_t>());
+                }
+                std::cout << "Unique target values: ";
+                for (auto v : acc) {
+                    std::cout << v << " ";
+                }
+                std::cout << std::endl;
+            }
             optimizer.zero_grad();
             auto output = model->forward(data);
+
+            if (batch_idx == 0) {
+                printTensorStats(output, "Model output");
+                std::cout << "Output for first example:\n" << output[0].cpu() << std::endl;
+            }
+
             auto loss = torch::nn::functional::cross_entropy(output, target);
 
-            // Backward pass
+            if (loss.isnan().any().item<bool>()) {
+                std::cout << "WARNING: Loss is NaN!" << std::endl;
+                continue;
+            }
+
             loss.backward();
             optimizer.step();
 
@@ -62,14 +126,23 @@ void TrainModel(std::shared_ptr<IDataSet> trainData, std::shared_ptr<IDataSet> t
             auto pred = output.argmax(1);
             num_correct += pred.eq(target).sum().item<int64_t>();
             num_samples += target.size(0);
-
             epoch_loss += loss.item<float>();
 
             if (batch_idx % logInterval == 0) {
                 std::cout << "Train Epoch: " << epoch
                     << " [" << batch_idx * target.size(0) << "/"
                     << trainData->size().value() << "] "
-                    << "Loss: " << loss.item<float>() << std::endl;
+                    << "Loss: " << std::fixed << std::setprecision(4)
+                    << loss.item<float>() << std::endl;
+
+                if (batch_idx == 0) {
+                    std::cout << "Gradient statistics:" << std::endl;
+                    for (const auto& p : model->parameters()) {
+                        if (p.grad().defined()) {
+                            printTensorStats(p.grad(), "Gradient");
+                        }
+                    }
+                }
             }
             batch_idx++;
         }
@@ -78,7 +151,8 @@ void TrainModel(std::shared_ptr<IDataSet> trainData, std::shared_ptr<IDataSet> t
         epoch_loss /= batch_idx;
 
         std::cout << "Epoch: " << epoch
-            << " Average loss: " << epoch_loss
+            << " Average loss: " << std::fixed << std::setprecision(5)
+            << epoch_loss
             << " Accuracy: " << accuracy * 100.0f << "%" << std::endl;
 
         // Validation phase
@@ -89,16 +163,23 @@ void TrainModel(std::shared_ptr<IDataSet> trainData, std::shared_ptr<IDataSet> t
         num_correct = 0;
         num_samples = 0;
         batch_idx = 0;
+
         for (const auto& batch : *testLoader) {
-            auto data = batch[0];    // First element is the input data
-            auto target = batch[1];  // Second element is the target/label
+            std::vector<torch::Tensor> data_vec, target_vec;
+            for (const auto& example : batch) {
+                data_vec.push_back(example.data);
+                target_vec.push_back(example.target);
+            }
+
+            auto data = torch::stack(data_vec).to(device);
+            auto target = torch::stack(target_vec).to(device);
 
             auto output = model->forward(data);
-            test_loss += torch::nn::functional::cross_entropy(output, target.target).item<float>();
+            test_loss += torch::nn::functional::cross_entropy(output, target).item<float>();
 
             auto pred = output.argmax(1);
-            num_correct += pred.eq(target.target).sum().item<int64_t>();
-            num_samples += target.target.size(0);
+            num_correct += pred.eq(target).sum().item<int64_t>();
+            num_samples += target.size(0);
             batch_idx++;
         }
 

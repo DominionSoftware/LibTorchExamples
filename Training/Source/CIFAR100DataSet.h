@@ -27,11 +27,10 @@ public:
 
     void load(const std::filesystem::path& root_path) override
     {
-        dataset = CIFAR100(
-            root_path,
-            is_train ? CIFAR100::Mode::kTrain
-            : CIFAR100::Mode::kTest
-        );
+        dataset = CIFAR100();
+        ProgressBar<int64_t> bar;
+
+        dataset.load(root_path, is_train ? CIFAR100::Mode::kTrain : CIFAR100::Mode::kTest,bar);
     }
 
     torch::data::Example<> get(size_t index) override

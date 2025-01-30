@@ -24,11 +24,11 @@ int main(int ,const char * args[])
 
  	dataSetTrain->load(data_folder());
 
-	auto dataSetTest = std::make_shared<CIFAR100DataSet>(true);
+	auto dataSetTest = std::make_shared<CIFAR100DataSet>(false);
 
 	dataSetTest->load(data_folder());
 
-	TrainModel(dataSetTrain, dataSetTest, 25);
+	TrainModel(dataSetTrain, dataSetTest, 100);
 
  
 
