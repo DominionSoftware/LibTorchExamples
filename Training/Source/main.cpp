@@ -15,19 +15,18 @@ int main(int ,const char * args[])
 
 	auto data_folder = []()->const std::filesystem::path
 		{
-			return std::filesystem::current_path() / "cifar-100-binary";
+			return std::filesystem::current_path() / "RelWithDebInfo" / "cifar-100-binary" / "";
 
 		};
 
 
 	auto dataSetTrain = std::make_shared<CIFAR100DataSet>(true);
 
-	std::string fullpath = data_folder().string();
-	dataSetTrain->load(fullpath);
+ 	dataSetTrain->load(data_folder());
 
 	auto dataSetTest = std::make_shared<CIFAR100DataSet>(true);
 
-	dataSetTest->load(data_folder().string());
+	dataSetTest->load(data_folder());
 
 	TrainModel(dataSetTrain, dataSetTest, 25);
 

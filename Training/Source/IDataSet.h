@@ -17,7 +17,7 @@ public:
     virtual ~IDataSet() = default;
 
     // Load dataset from the specified directory
-    virtual void load(const std::string& root_path) = 0;
+    virtual void load(const std::filesystem::path& root_path) = 0;
 
     // Get a batch of data with specified indexes
     virtual torch::data::Example<> get(size_t index) = 0;

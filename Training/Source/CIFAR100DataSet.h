@@ -25,7 +25,7 @@ public:
             .workers(2);
     }
 
-    void load(const std::string& root_path) override
+    void load(const std::filesystem::path& root_path) override
     {
         dataset = CIFAR100(
             root_path,
