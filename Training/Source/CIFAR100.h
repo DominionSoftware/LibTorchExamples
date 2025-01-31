@@ -52,8 +52,8 @@ public:
 
 		// Prepare tensors to hold data
 		images_ = torch::empty({ num_samples, num_channels, height, width }, torch::kByte);
-		labels_ = torch::empty(num_samples, torch::kByte);
-		coarse_labels_ = torch::empty(num_samples, torch::kByte);
+		class_labels_ = torch::empty(num_samples, torch::kByte);
+		superclass_labels_ = torch::empty(num_samples, torch::kByte);
 		std::vector<uint8_t> buffer(1 + 1 + image_size);  // coarse label + fine label + image
 
 		// Read all samples
@@ -68,8 +68,8 @@ public:
 			file.read(reinterpret_cast<char*>(buffer.data()), buffer.size());
 
 			// First byte is coarse label, second byte is fine label
-			coarse_labels_[i] =buffer[0];
-			labels_[i] = buffer[1];
+			superclass_labels_[i] =buffer[0];
+			class_labels_[i] = buffer[1];
 
 			// Copy image data
  		
@@ -100,7 +100,7 @@ public:
 
 	torch::data::Example<> get(size_t index) override
 	{
-		return {images_[index], labels_[index].clone()};
+		return {images_[index], class_labels_[index].clone()};
 	}
 
 	torch::optional<size_t> size() const override
@@ -115,18 +115,18 @@ public:
 
 	const torch::Tensor& targets() const
 	{
-		return labels_;
+		return class_labels_;
 	}
 
 	const torch::Tensor& coarse_targets() const
 	{
-		return coarse_labels_;
+		return superclass_labels_;
 	}
 
 private:
 	torch::Tensor images_;
-	torch::Tensor labels_;
-	torch::Tensor coarse_labels_;
+	torch::Tensor class_labels_;
+	torch::Tensor superclass_labels_;
 };
 
 #endif
