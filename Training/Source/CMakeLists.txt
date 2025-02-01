@@ -8,6 +8,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(WIN32)
 
+    set(PNG_ROOT_DIR "D:/Projects/libpng.ins")
+    set(PNG_PNG_INCLUDE_DIR "${PNG_ROOT_DIR}/include")
+    set(PNG_LIBRARY "${PNG_ROOT_DIR}/lib/libpng16.lib")
+    set(PNG_LIBRARY_PATH ${PNG_LIBRARY})
+    set(PNG_DLL_DIR "${PNG_ROOT_DIR}/bin")
+
+
     set(CUDNN_ROOT_DIR "C:/Program Files/NVIDIA/CUDNN/v9.7")
     set(CUDNN_INCLUDE_PATH ${CUDNN_ROOT_DIR}/include/12.8)
     set(CUDNN_LIBRARY "${CUDNN_ROOT_DIR}/lib/12.8/x64/cudnn.lib")
@@ -41,6 +48,8 @@ set(CMAKE_CUDA_ARCHITECTURES 86)
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler /permissive-")
 find_package(Torch REQUIRED)
 find_package(CUDA REQUIRED)
+find_package(PNG REQUIRED)
+
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
 if(USE_CUDNN)
     find_library(CUDNN_LIBRARY
@@ -57,6 +66,8 @@ set(SOURCE
     TrainModel.cpp 
     CIFAR100DataSet.h 
     ProgressBar.h 
+    FileSaver.h 
+    FileSaver.cpp 
     main.cpp
 )
 add_executable(${PROJECT_NAME} 
@@ -65,10 +76,12 @@ add_executable(${PROJECT_NAME}
 
 
 if(USE_CUDNN)
-    target_include_directories(${PROJECT_NAME} PRIVATE ${CUDNN_INCLUDE_DIR})
-    target_link_libraries(${PROJECT_NAME} PRIVATE "${TORCH_LIBRARIES}" ${CUDNN_LIBRARY})
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CUDNN_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR})
+    target_link_libraries(${PROJECT_NAME} PRIVATE "${TORCH_LIBRARIES}" ${CUDNN_LIBRARY} PNG::PNG)
 else()
-    target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}")
+    target_include_directories(${PROJECT_NAME} PRIVATE ${PNG_PNG_INCLUDE_DIR})
+
+    target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}" PNG::PNG)
 
 endif(USE_CUDNN)
 
@@ -97,6 +110,14 @@ if(MSVC)
                           POST_BUILD
                           COMMAND ${CMAKE_COMMAND} -E copy_if_different
                           ${CUDNN_DLLS}
+                          $<TARGET_FILE_DIR:${PROJECT_NAME}>)
+    endif()
+
+     if(EXISTS "${PNG_DLL_DIR}/libpng16.dll")
+        add_custom_command(TARGET ${PROJECT_NAME}
+                          POST_BUILD
+                          COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                          "${PNG_DLL_DIR}/libpng16.dll"
                           $<TARGET_FILE_DIR:${PROJECT_NAME}>)
     endif()
 

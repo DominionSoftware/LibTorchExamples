@@ -8,6 +8,7 @@
 #include <string>
 
 #include "CIFAR100.h"
+#include "FileSaver.h"
 
 
 class IDataSet
@@ -17,7 +18,7 @@ public:
     virtual ~IDataSet() = default;
 
     // Load dataset from the specified directory
-    virtual void load(const std::filesystem::path& root_path) = 0;
+    virtual void load(const std::filesystem::path& root_path,std::shared_ptr<FileSaver> fileSaver=nullptr) = 0;
 
     // Get a batch of data with specified indexes
     virtual torch::data::Example<> get(size_t index) = 0;
@@ -54,6 +55,7 @@ public:
         >,
         torch::data::samplers::RandomSampler
         >> = 0;
+
 
     IDataSet(){}
 

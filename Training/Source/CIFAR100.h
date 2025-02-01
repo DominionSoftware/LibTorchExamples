@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <filesystem>
 
+#include "FileSaver.h"
 #include "ProgressBar.h"
 
 
@@ -25,7 +26,7 @@ public:
 		
 	}
 
-	void load(const std::filesystem::path& root, Mode mode,ProgressBar<int64_t>& progressBar)
+	void load(const std::filesystem::path& root, Mode mode,ProgressBar<int64_t>& progressBar,std::shared_ptr<FileSaver> fileSaver = nullptr)
 	{
 		std::string filename = mode == kTrain ? "train.bin" : "test.bin";
 
@@ -79,19 +80,15 @@ public:
 				{ 3, 32, 32 },       // Shape: channels, height, width
 				torch::kByte
 			);
-			/*
-			int buffer_idx = 2; // Start after the labels
-			for (int64_t c = 0; c < num_channels; ++c)
+
+			if (fileSaver != nullptr)
 			{
-				for (int64_t h = 0; h < height; ++h)
-				{
-					for (int64_t w = 0; w < width; ++w)
-					{
-						images_[i][c][h][w] = buffer[buffer_idx++];  
-					}
-				}
+				std::string s;
+				std::stringstream ss(s);
+				ss << i << "_" << superclass_labels_[i].item<int>() << "_" << class_labels_[i].item<int>() << "_image.png";
+
+				fileSaver->saveAsPNG(images_[i], ss.str());
 			}
-			*/
 			 
 		}
 
@@ -113,12 +110,12 @@ public:
 		return images_;
 	}
 
-	const torch::Tensor& targets() const
+	const torch::Tensor& classLabels() const
 	{
 		return class_labels_;
 	}
 
-	const torch::Tensor& coarse_targets() const
+	const torch::Tensor& superclassLabels() const
 	{
 		return superclass_labels_;
 	}

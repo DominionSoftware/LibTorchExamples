@@ -19,6 +19,14 @@ int main(int ,const char * args[])
 
 		};
 
+	auto image_folder = []()->const std::filesystem::path
+		{
+			return std::filesystem::current_path() / "RelWithDebInfo" / "images" / "";
+
+		};
+
+	//std::shared_ptr<FileSaver> fileSaver = std::make_shared<FileSaver>(image_folder());
+
 
 	auto dataSetTrain = std::make_shared<CIFAR100DataSet>(true);
 

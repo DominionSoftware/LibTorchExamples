@@ -25,12 +25,12 @@ public:
             .workers(2);
     }
 
-    void load(const std::filesystem::path& root_path) override
+    void load(const std::filesystem::path& root_path,std::shared_ptr<FileSaver> fileSaver = nullptr) override
     {
         dataset = CIFAR100();
         ProgressBar<int64_t> bar;
 
-        dataset.load(root_path, is_train ? CIFAR100::Mode::kTrain : CIFAR100::Mode::kTest,bar);
+        dataset.load(root_path, is_train ? CIFAR100::Mode::kTrain : CIFAR100::Mode::kTest,bar,fileSaver);
     }
 
     torch::data::Example<> get(size_t index) override
