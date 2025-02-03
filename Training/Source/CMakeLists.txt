@@ -68,6 +68,10 @@ set(SOURCE
     ProgressBar.h 
     FileSaver.h 
     FileSaver.cpp 
+    CIFAR100Module.h
+    CIFAR100ClassNames.h 
+    HeirarchicalLoss.h 
+    HeirarchicalLoss.cpp 
     main.cpp
 )
 add_executable(${PROJECT_NAME} 

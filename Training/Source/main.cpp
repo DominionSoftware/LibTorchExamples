@@ -7,6 +7,7 @@
 #include <filesystem>
 
 #include "CIFAR100DataSet.h"
+#include "CIFAR100Module.h"
 
 
 int main(int ,const char * args[])
@@ -28,15 +29,18 @@ int main(int ,const char * args[])
 	//std::shared_ptr<FileSaver> fileSaver = std::make_shared<FileSaver>(image_folder());
 
 
-	auto dataSetTrain = std::make_shared<CIFAR100DataSet>(true);
+	auto dataSetTrain = std::make_shared<torch_explorer::CIFAR100DataSet>(true);
 
  	dataSetTrain->load(data_folder());
 
-	auto dataSetTest = std::make_shared<CIFAR100DataSet>(false);
+	auto dataSetTest = std::make_shared<torch_explorer::CIFAR100DataSet>(false);
 
 	dataSetTest->load(data_folder());
 
-	TrainModel(dataSetTrain, dataSetTest, 100);
+	auto model = std::make_shared<torch_explorer::CIFAR100Module>(dataSetTrain->getInputShape(),dataSetTrain->getNumClasses());
+
+
+	torch_explorer::TrainModel(model, dataSetTrain, dataSetTest, 100);
 
  
 

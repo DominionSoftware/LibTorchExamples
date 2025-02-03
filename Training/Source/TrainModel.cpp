@@ -1,41 +1,47 @@
 #include "TrainModel.h"
 #include "IDataSet.h"
-
 #include <iomanip>
+#include "CIFAR100Module.h"
+#include "CIFAR100ClassNames.h"
+#include "HeirarchicalLoss.h"
 
-
-
-class ReduceLROnPlateau : public torch::optim::LRScheduler {
+class ReduceLROnPlateau : public torch::optim::LRScheduler
+{
 public:
 	ReduceLROnPlateau(torch::optim::Optimizer& optimizer,
-		double factor = 0.1,
-		size_t patience = 10,
-		double min_lr = 1e-6,
-		double threshold = 1e-4)
-		: torch::optim::LRScheduler(optimizer),
-		factor_(factor),
-		patience_(patience),
-		min_lr_(min_lr),
-		threshold_(threshold),
-		best_loss_(std::numeric_limits<double>::max()),
-		bad_epochs_(0) {
+	                  double factor = 0.1,
+	                  size_t patience = 10,
+	                  double min_lr = 1e-6,
+	                  double threshold = 1e-4)
+		: LRScheduler(optimizer),
+		  factor_(factor),
+		  patience_(patience),
+		  min_lr_(min_lr),
+		  threshold_(threshold),
+		  best_loss_(std::numeric_limits<double>::max()),
+		  bad_epochs_(0)
+	{
 	}
 
 protected:
-	std::vector<double> get_lrs() override {
+	std::vector<double> get_lrs() override
+	{
 		auto current_lrs = get_current_lrs();
 		std::vector<double> new_lrs;
 
 		// If we've waited long enough with no improvement
-		if (bad_epochs_ >= patience_) {
-			for (double lr : current_lrs) {
+		if (bad_epochs_ >= patience_)
+		{
+			for (double lr : current_lrs)
+			{
 				// Reduce learning rate but don't go below min_lr
 				new_lrs.push_back(std::max(lr * factor_, min_lr_));
 			}
-			bad_epochs_ = 0;  // Reset counter
+			bad_epochs_ = 0; // Reset counter
 		}
-		else {
-			new_lrs = current_lrs;  // Keep same learning rates
+		else
+		{
+			new_lrs = current_lrs; // Keep same learning rates
 		}
 
 		return new_lrs;
@@ -43,12 +49,15 @@ protected:
 
 public:
 	// Call this instead of step() to track loss
-	void stepWithLoss(double loss) {
-		if (loss < best_loss_ - threshold_) {
+	void stepWithLoss(double loss)
+	{
+		if (loss < best_loss_ - threshold_)
+		{
 			best_loss_ = loss;
 			bad_epochs_ = 0;
 		}
-		else {
+		else
+		{
 			bad_epochs_++;
 		}
 		step();
@@ -63,26 +72,28 @@ private:
 	size_t bad_epochs_;
 };
 
-
-
-class CosineAnnealingLR : public torch::optim::LRScheduler {
+class CosineAnnealingLR : public torch::optim::LRScheduler
+{
 public:
 	CosineAnnealingLR(torch::optim::Optimizer& optimizer,
-		size_t T_max,
-		double eta_min = 0)
-		: torch::optim::LRScheduler(optimizer),
-		T_max_(T_max),
-		eta_min_(eta_min) {
+	                  size_t T_max,
+	                  double eta_min = 0)
+		: LRScheduler(optimizer),
+		  T_max_(T_max),
+		  eta_min_(eta_min)
+	{
 	}
 
 protected:
-	std::vector<double> get_lrs() override {
+	std::vector<double> get_lrs() override
+	{
 		std::vector<double> new_lrs;
 		auto current_lrs = get_current_lrs();
 
 		double factor = 0.5 * (1 + std::cos(M_PI * step_count_ / T_max_));
 
-		for (double lr : current_lrs) {
+		for (double lr : current_lrs)
+		{
 			new_lrs.push_back(eta_min_ + (lr - eta_min_) * factor);
 		}
 		return new_lrs;
@@ -92,8 +103,6 @@ private:
 	size_t T_max_;
 	double eta_min_;
 };
-
-
 
 class StepLRScheduler : public torch::optim::LRScheduler
 {
@@ -134,7 +143,6 @@ private:
 	double gamma_;
 };
 
-
 class OneCycleLR : public torch::optim::LRScheduler
 {
 public:
@@ -157,7 +165,6 @@ protected:
 
 		for (double _ : get_current_lrs())
 		{
-			// Use current LRs size to determine num groups
 			if (progress < 0.3)
 			{
 				// First 30%: linear warmup
@@ -182,7 +189,6 @@ private:
 	double initial_lr_;
 };
 
-
 void printTensorStats(const torch::Tensor& tensor, const std::string& name)
 {
 	auto cpu_tensor = tensor.cpu(); // Move to CPU for printing
@@ -202,196 +208,210 @@ void printTensorStats(const torch::Tensor& tensor, const std::string& name)
 	}
 }
 
-void TrainModel(std::shared_ptr<IDataSet> trainData, std::shared_ptr<IDataSet> testData,
-                size_t num_epochs, double learningRate, size_t logInterval)
+namespace torch_explorer
 {
-	// Check for CUDA availability
-	torch::Device device(torch::kCPU);
-	if (torch::cuda::is_available())
+	void TrainModel(std::shared_ptr<CIFAR100Module> model,
+	                std::shared_ptr<IDataSet> trainData,
+	                std::shared_ptr<IDataSet> testData,
+	                size_t num_epochs, double learningRate, size_t logInterval)
 	{
-		std::cout << "CUDA is available! Training on GPU." << std::endl;
-		device = torch::Device(torch::kCUDA);
-	}
-
-	auto img_dims = trainData->getInputShape();
-	std::cout << "Starting training with:" << std::endl
-		<< "Device: " << (device.is_cuda() ? "GPU" : "CPU") << std::endl
-		<< "Learning rate: " << learningRate << std::endl
-		<< "Number of epochs: " << num_epochs << std::endl
-		<< "Image dimensions: [" << img_dims[0] << ", "
-		<< img_dims[1] << ", " << img_dims[2] << "]" << std::endl
-		<< "Number of classes: " << trainData->getNumClasses() << std::endl;
-
-	torch::nn::Sequential model(
-		torch::nn::Conv2d(torch::nn::Conv2dOptions(img_dims[0], 32, 3).padding(1)),
-		torch::nn::Functional(torch::relu),
-		torch::nn::MaxPool2d(torch::nn::MaxPool2dOptions(2).stride(2)),
-
-		torch::nn::Conv2d(torch::nn::Conv2dOptions(32, 64, 3).padding(1)),
-		torch::nn::Functional(torch::relu),
-		torch::nn::MaxPool2d(torch::nn::MaxPool2dOptions(2).stride(2)),
-
-		torch::nn::Conv2d(torch::nn::Conv2dOptions(64, 64, 3).padding(1)),
-		torch::nn::Functional(torch::relu),
-		torch::nn::MaxPool2d(torch::nn::MaxPool2dOptions(2).stride(2)),
-
-		torch::nn::Flatten(),
-		torch::nn::Linear(64 * (img_dims[1] / 8) * (img_dims[2] / 8), 512),
-		torch::nn::Functional(torch::relu),
-		torch::nn::Dropout(0.5),
-		torch::nn::Linear(512, trainData->getNumClasses())
-	);
-
-	// Move model to GPU if available
-	model->to(device);
-	torch::optim::Adam optimizer(model->parameters(), learningRate);
-	ReduceLROnPlateau scheduler(optimizer);
- 
-	auto trainLoader = trainData->getDataLoader();
-	auto testLoader = testData->getDataLoader();
-
-	// Print initial parameter stats
-	std::cout << "\nInitial model parameters:" << std::endl;
-	for (const auto& p : model->parameters())
-	{
-		printTensorStats(p, "Parameter");
-	}
-
-	model->train();
-	for (size_t epoch = 0; epoch < num_epochs; ++epoch)
-	{
-		size_t batch_idx = 0;
-		float epoch_loss = 0.0f;
-		size_t num_correct = 0;
-		size_t num_samples = 0;
-
-		std::cout << "\nStarting epoch " << epoch << std::endl;
-
-		for (auto& batch : *trainLoader)
+		try
 		{
-			std::vector<torch::Tensor> data_vec, target_vec;
-			for (const auto& example : batch)
+			// Check for CUDA availability
+			torch::Device device(torch::kCPU);
+			if (torch::cuda::is_available())
 			{
-				data_vec.push_back(example.data);
-				target_vec.push_back(example.target);
+				std::cout << "CUDA is available! Training on GPU." << std::endl;
+				device = torch::Device(torch::kCUDA);
 			}
 
-			auto data = stack(data_vec).to(device);
-			auto target = stack(target_vec).to(device);
+			auto img_dims = trainData->getInputShape();
+			std::cout << "Starting training with:" << std::endl
+				<< "Device: " << (device.is_cuda() ? "GPU" : "CPU") << std::endl
+				<< "Learning rate: " << learningRate << std::endl
+				<< "Number of epochs: " << num_epochs << std::endl
+				<< "Image dimensions: [" << img_dims[0] << ", "
+				<< img_dims[1] << ", " << img_dims[2] << "]" << std::endl
+				<< "Number of classes: " << trainData->getNumClasses() << std::endl;
 
-			if (batch_idx == 0)
+			// Move model to GPU if available
+			model->to(device);
+
+			torch::optim::Adam optimizer(model->parameters(), learningRate);
+			ReduceLROnPlateau scheduler(optimizer);
+
+			auto trainLoader = trainData->getDataLoader();
+			auto testLoader = testData->getDataLoader();
+
+			// Create mapping tensor
+			const auto& mapping_data = CIFAR100ClassNames::FineToCoarse();
+
+			// Create initial tensor on CPU and clone to make it independent
+			auto mapping_tensor = torch::from_blob(
+				(void*)mapping_data.data(),
+				{static_cast<int64_t>(mapping_data.size())},
+				{1},
+				torch::TensorOptions().dtype(torch::kInt64)
+			).clone();
+
+			// Move to the appropriate device
+			mapping_tensor = mapping_tensor.to(device);
+
+			// Print initial parameter stats
+			std::cout << "\nInitial model parameters:" << std::endl;
+			for (const auto& p : model->parameters())
 			{
-				printTensorStats(data, "Input batch");
-				std::cout << "Target values: " << target.cpu() << std::endl;
-				// Count unique values manually
-				auto acc = std::set<int64_t>();
-				for (int64_t i = 0; i < target.numel(); ++i)
+				printTensorStats(p, "Parameter");
+			}
+
+			model->train();
+			for (size_t epoch = 0; epoch < num_epochs; ++epoch)
+			{
+				size_t batch_idx = 0;
+				float epoch_loss = 0.0f;
+				size_t num_samples = 0;
+				size_t num_correct_fine = 0;
+				size_t num_correct_coarse = 0;
+
+				std::cout << "\nStarting epoch " << epoch << std::endl;
+
+				for (auto& batch : *trainLoader)
 				{
-					acc.insert(target[i].item<int64_t>());
-				}
-				std::cout << "Unique target values: ";
-				for (auto v : acc)
-				{
-					std::cout << v << " ";
-				}
-				std::cout << std::endl;
-			}
-			optimizer.zero_grad();
-			auto output = model->forward(data);
-
-			if (batch_idx == 0)
-			{
-				printTensorStats(output, "Model output");
-				std::cout << "Output for first example:\n" << output[0].cpu() << std::endl;
-			}
-
-			auto loss = torch::nn::functional::cross_entropy(output, target);
-
-			if (loss.isnan().any().item<bool>())
-			{
-				std::cout << "WARNING: Loss is NaN!" << std::endl;
-				continue;
-			}
-
-			loss.backward();
-			optimizer.step();
-
-			// Compute accuracy
-			auto pred = output.argmax(1);
-			num_correct += pred.eq(target).sum().item<int64_t>();
-			num_samples += target.size(0);
-			epoch_loss += loss.item<float>();
-
-			if (batch_idx % logInterval == 0)
-			{
-				std::cout << "Train Epoch: " << epoch
-					<< " [" << batch_idx * target.size(0) << "/"
-					<< trainData->size().value() << "] "
-					<< "Loss: " << std::fixed << std::setprecision(4)
-					<< loss.item<float>() << std::endl;
-
-				if (batch_idx == 0)
-				{
-					std::cout << "Gradient statistics:" << std::endl;
-					for (const auto& p : model->parameters())
+					std::vector<torch::Tensor> data_vec, target_vec;
+					for (const auto& example : batch)
 					{
-						if (p.grad().defined())
+						data_vec.push_back(example.data);
+						target_vec.push_back(example.target);
+					}
+
+					auto data = stack(data_vec).to(device);
+					auto target = stack(target_vec).to(torch::kInt64).to(device);
+					auto coarse_target = mapping_tensor.index_select(0, target);
+
+					if (batch_idx == 0)
+					{
+						printTensorStats(data, "Input batch");
+						std::cout << "Fine target values: " << target.cpu() << std::endl;
+						std::cout << "Coarse target values: " << coarse_target.cpu() << std::endl;
+					}
+
+					optimizer.zero_grad();
+					auto output = model->forward(data);
+					auto [coarse_out, fine_out] = output;
+
+					if (batch_idx == 0)
+					{
+						printTensorStats(coarse_out, "Coarse output");
+						printTensorStats(fine_out, "Fine output");
+					}
+
+					auto loss = HeirachicalLoss(output, std::make_tuple(coarse_target, target));
+
+					if (loss.isnan().any().item<bool>())
+					{
+						std::cout << "WARNING: Loss is NaN!" << std::endl;
+						continue;
+					}
+
+					loss.backward();
+					optimizer.step();
+
+					// Compute accuracy
+					auto pred_fine = fine_out.argmax(1);
+					auto pred_coarse = coarse_out.argmax(1);
+					num_correct_fine += pred_fine.eq(target).sum().item<int64_t>();
+					num_correct_coarse += pred_coarse.eq(coarse_target).sum().item<int64_t>();
+					num_samples += target.size(0);
+					epoch_loss += loss.item<float>();
+
+					if (batch_idx % logInterval == 0)
+					{
+						std::cout << "Train Epoch: " << epoch
+							<< " [" << batch_idx * target.size(0) << "/"
+							<< trainData->size().value() << "] "
+							<< "Loss: " << std::fixed << std::setprecision(4)
+							<< loss.item<float>() << std::endl;
+
+						if (batch_idx == 0)
 						{
-							printTensorStats(p.grad(), "Gradient");
+							std::cout << "Gradient statistics:" << std::endl;
+							for (const auto& p : model->parameters())
+							{
+								if (p.grad().defined())
+								{
+									printTensorStats(p.grad(), "Gradient");
+								}
+							}
 						}
 					}
+					batch_idx++;
 				}
+
+				float accuracy_fine = static_cast<float>(num_correct_fine) / num_samples;
+				float accuracy_coarse = static_cast<float>(num_correct_coarse) / num_samples;
+				epoch_loss /= batch_idx;
+
+				std::cout << "Epoch: " << epoch
+					<< " Average loss: " << std::fixed << std::setprecision(5)
+					<< epoch_loss
+					<< " Fine Accuracy: " << accuracy_fine * 100.0f << "%"
+					<< " Coarse Accuracy: " << accuracy_coarse * 100.0f << "%" << std::endl;
+
+				// Validation phase
+				model->eval();
+				torch::NoGradGuard no_grad;
+
+				float test_loss = 0.0f;
+				num_correct_fine = 0;
+				num_correct_coarse = 0;
+				num_samples = 0;
+				batch_idx = 0;
+
+				for (const auto& batch : *testLoader)
+				{
+					std::vector<torch::Tensor> data_vec, target_vec;
+					for (const auto& example : batch)
+					{
+						data_vec.push_back(example.data);
+						target_vec.push_back(example.target);
+					}
+
+					auto data = stack(data_vec).to(device);
+					auto target = stack(target_vec).to(torch::kInt64).to(device);
+					auto coarse_target = mapping_tensor.index_select(0, target);
+
+					auto output = model->forward(data);
+					test_loss += HeirachicalLoss(output,
+					                             std::make_tuple(coarse_target, target)).item<float>();
+
+					auto [coarse_out, fine_out] = output;
+					auto pred_fine = fine_out.argmax(1);
+					auto pred_coarse = coarse_out.argmax(1);
+					num_correct_fine += pred_fine.eq(target).sum().item<int64_t>();
+					num_correct_coarse += pred_coarse.eq(coarse_target).sum().item<int64_t>();
+					num_samples += target.size(0);
+					batch_idx++;
+				}
+
+				test_loss /= batch_idx;
+				accuracy_fine = static_cast<float>(num_correct_fine) / num_samples;
+				accuracy_coarse = static_cast<float>(num_correct_coarse) / num_samples;
+
+				std::cout << "Test set: Average loss: " << test_loss
+					<< " Fine Accuracy: " << accuracy_fine * 100.0f << "%"
+					<< " Coarse Accuracy: " << accuracy_coarse * 100.0f << "%" << std::endl;
+
+				scheduler.stepWithLoss(epoch_loss);
+
+				std::cout << "Current learning rate: "
+					<< optimizer.defaults().get_lr() << std::endl;
+
+				model->train();
 			}
-			batch_idx++;
 		}
-
-		float accuracy = static_cast<float>(num_correct) / num_samples;
-		epoch_loss /= batch_idx;
-
-		std::cout << "Epoch: " << epoch
-			<< " Average loss: " << std::fixed << std::setprecision(5)
-			<< epoch_loss
-			<< " Accuracy: " << accuracy * 100.0f << "%" << std::endl;
-
-		// Validation phase
-		model->eval();
-		torch::NoGradGuard no_grad;
-
-		float test_loss = 0.0f;
-		num_correct = 0;
-		num_samples = 0;
-		batch_idx = 0;
-
-		for (const auto& batch : *testLoader)
+		catch (const std::exception& ex)
 		{
-			std::vector<torch::Tensor> data_vec, target_vec;
-			for (const auto& example : batch)
-			{
-				data_vec.push_back(example.data);
-				target_vec.push_back(example.target);
-			}
-
-			auto data = stack(data_vec).to(device);
-			auto target = stack(target_vec).to(device);
-
-			auto output = model->forward(data);
-			test_loss += torch::nn::functional::cross_entropy(output, target).item<float>();
-
-			auto pred = output.argmax(1);
-			num_correct += pred.eq(target).sum().item<int64_t>();
-			num_samples += target.size(0);
-			batch_idx++;
+			std::cout << ex.what() << std::endl;
 		}
-
-		test_loss /= batch_idx;
-		accuracy = static_cast<float>(num_correct) / num_samples;
-
-		std::cout << "Test set: Average loss: " << test_loss
-			<< " Accuracy: " << accuracy * 100.0f << "%" << std::endl;
-		scheduler.stepWithLoss(epoch_loss);
-
-		std::cout << "Current learning rate: "
-			<< optimizer.defaults().get_lr() << std::endl;
-		model->train();
 	}
 }

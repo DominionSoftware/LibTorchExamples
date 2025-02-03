@@ -3,101 +3,105 @@
 
 #include "IDataSet.h"
 #include <torch/torch.h>
- 
 
-class CIFAR100DataSet : public IDataSet
+namespace torch_explorer
 {
-public:
 
 
-    CIFAR100DataSet() :IDataSet(), is_train(false)
+    class CIFAR100DataSet : public IDataSet
     {
-        options = torch::data::DataLoaderOptions()
-            .batch_size(32)
-            .workers(2);
-    }
-    
+    public:
 
-    explicit CIFAR100DataSet(bool is_training) : IDataSet(),is_train(is_training)
-    {
-        options = torch::data::DataLoaderOptions()
-            .batch_size(32)
-            .workers(2);
-    }
 
-    void load(const std::filesystem::path& root_path,std::shared_ptr<FileSaver> fileSaver = nullptr) override
-    {
-        dataset = CIFAR100();
-        ProgressBar<int64_t> bar;
+        CIFAR100DataSet() :IDataSet(), is_train(false)
+        {
+            options = torch::data::DataLoaderOptions()
+                .batch_size(32)
+                .workers(2);
+        }
 
-        dataset.load(root_path, is_train ? CIFAR100::Mode::kTrain : CIFAR100::Mode::kTest,bar,fileSaver);
-    }
 
-    torch::data::Example<> get(size_t index) override
-    {
-        return dataset.get(index);
-    }
+        explicit CIFAR100DataSet(bool is_training) : IDataSet(), is_train(is_training)
+        {
+            options = torch::data::DataLoaderOptions()
+                .batch_size(32)
+                .workers(2);
+        }
 
-    torch::optional<size_t> size() const override
-    {
-        return dataset.size();
-    }
+        void load(const std::filesystem::path& root_path, std::shared_ptr<FileSaver> fileSaver = nullptr) override
+        {
+            dataset = torch_explorer::CIFAR100();
+            ProgressBar<int64_t> bar;
 
-    size_t getBatchSize() const override
-    {
-        return options.batch_size();
-    }
+            dataset.load(root_path, is_train ? CIFAR100::Mode::kTrain : CIFAR100::Mode::kTest, bar, fileSaver);
+        }
 
-    void setBatchSize(size_t batch_size) override
-    {
-        options.batch_size(batch_size);
-    }
+        torch::data::Example<> get(size_t index) override
+        {
+            return dataset.get(index);
+        }
 
-    size_t getNumWorkers() const override
-    {
-        return options.workers();
-    }
+        torch::optional<size_t> size() const override
+        {
+            return dataset.size();
+        }
 
-    void setNumWorkers(size_t num_workers) override
-    {
-        options.workers(num_workers);
-    }
+        size_t getBatchSize() const override
+        {
+            return options.batch_size();
+        }
 
-    bool isTraining() const override
-    {
-        return is_train;
-    }
+        void setBatchSize(size_t batch_size) override
+        {
+            options.batch_size(batch_size);
+        }
 
-    std::vector<int64_t> getInputShape() const override
-    {
-        return { 3, 32, 32 };  // CIFAR images are 32x32 RGB
-    }
+        size_t getNumWorkers() const override
+        {
+            return options.workers();
+        }
 
-    size_t getNumClasses() const override
-    {
-        return 100;  // CIFAR-100 has 100 classes
-    }
+        void setNumWorkers(size_t num_workers) override
+        {
+            options.workers(num_workers);
+        }
 
-    auto getDataLoader() -> std::unique_ptr<torch::data::StatelessDataLoader<
-        torch::data::datasets::MapDataset<
-        CIFAR100,
-        torch::data::transforms::Normalize<>
-        >,
-        torch::data::samplers::RandomSampler
-        >> override
-    {
-        auto normalized_dataset = dataset
-            .map(torch::data::transforms::Normalize<>({ 0.5071, 0.4867, 0.4408 },
-                { 0.2675, 0.2565, 0.2761 }));
+        bool isTraining() const override
+        {
+            return is_train;
+        }
 
-        return torch::data::make_data_loader(std::move(normalized_dataset), options);
-    }
+        std::vector<int64_t> getInputShape() const override
+        {
+            return { 3, 32, 32 };  // CIFAR images are 32x32 RGB
+        }
 
-private:
-    CIFAR100 dataset;
-    torch::data::DataLoaderOptions options;
-    std::vector<std::function<torch::data::Example<>(torch::data::Example<>)>> transforms;
-    bool is_train;
-};
+        size_t getNumClasses() const override
+        {
+            return 100;  // CIFAR-100 has 100 classes
+        }
+
+        auto getDataLoader() -> std::unique_ptr<torch::data::StatelessDataLoader<
+            torch::data::datasets::MapDataset<
+            CIFAR100,
+            torch::data::transforms::Normalize<>
+            >,
+            torch::data::samplers::RandomSampler
+            >> override
+        {
+            auto normalized_dataset = dataset
+                .map(torch::data::transforms::Normalize<>({ 0.5071, 0.4867, 0.4408 },
+                    { 0.2675, 0.2565, 0.2761 }));
+
+            return torch::data::make_data_loader(std::move(normalized_dataset), options);
+        }
+
+    private:
+        CIFAR100 dataset;
+        torch::data::DataLoaderOptions options;
+        std::vector<std::function<torch::data::Example<>(torch::data::Example<>)>> transforms;
+        bool is_train;
+    };
+}
 
 #endif

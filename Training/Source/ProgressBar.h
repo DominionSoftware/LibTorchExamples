@@ -1,18 +1,23 @@
 #ifndef PROGRESS_BAR_
 #define PROGRESS_BAR_
 
-template<typename T>
-class ProgressBar
+
+namespace torch_explorer
 {
-public:
 
 
-
-	void progress(T current, T total)
+	template<typename T>
+	class ProgressBar
 	{
-		std::cout << " progress = %" << (static_cast<double>(current) / static_cast<double>(total)) * 100 << std::endl;
-	}
-};
+	public:
 
+
+
+		void progress(T current, T total)
+		{
+			std::cout << " progress = %" << (static_cast<double>(current) / static_cast<double>(total)) * 100 << std::endl;
+		}
+	};
+}
 
 #endif

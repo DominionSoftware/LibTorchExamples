@@ -3,20 +3,22 @@
 #include <filesystem>
 #include <ATen/core/TensorBody.h>
 
-
-class FileSaver
+namespace torch_explorer
 {
 
-public:
-	FileSaver() = delete;
+	class FileSaver
+	{
 
-	explicit FileSaver(const std::filesystem::path& directory);
+	public:
+		FileSaver() = delete;
 
-	bool saveAsPNG(const at::Tensor& tensor, const std::string& filename);
+		explicit FileSaver(const std::filesystem::path& directory);
 
-protected:
+		bool saveAsPNG(const at::Tensor& tensor, const std::string& filename);
 
-	std::filesystem::path path_;
-};
+	protected:
 
+		std::filesystem::path path_;
+	};
+}
 #endif

@@ -5,7 +5,9 @@
 #include "png.h"
 #include <torch/torch.h>
 #include <vector>
- 
+
+using namespace torch_explorer;
+
 
 FileSaver::FileSaver(const std::filesystem::path& directory) : path_(directory)
 {
