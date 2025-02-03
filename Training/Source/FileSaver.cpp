@@ -14,7 +14,7 @@ FileSaver::FileSaver(const std::filesystem::path& directory) : path_(directory)
 
 }
 
-bool FileSaver::saveAsPNG(const torch::Tensor& tensor,const std::string& filename)
+bool FileSaver::saveAsPNG(const torch::Tensor& tensor,const std::filesystem::path& subDirs,const std::string& filename)
 {
 	auto cpu_tensor = tensor.to(torch::kCPU);
 
@@ -24,19 +24,23 @@ bool FileSaver::saveAsPNG(const torch::Tensor& tensor,const std::string& filenam
 	int width = cpu_tensor.size(1);
 	int channels = cpu_tensor.size(2);
 
-	if (!std::filesystem::exists(path_))
+	std::filesystem::path localPath = path_ / subDirs;
+
+	if (!std::filesystem::exists(localPath))
 	{
-		bool ok = std::filesystem::create_directories(path_);
+		std::error_code ec;
+		const bool ok = std::filesystem::create_directories(localPath,ec);
 		if (!ok)
 		{
-			return false;
+			std::cerr << "Error creating directories: " << ec.message() << " (" << ec.value() << ")\n";
 		}
 	}
+	localPath = localPath / "";
 
-	path_.replace_filename(filename);
+	localPath.replace_filename(filename);
 
 
-	FILE* fp = fopen(path_.string().c_str(), "wb");
+	FILE* fp = fopen(localPath.string().c_str(), "wb");
 	if (!fp) {
 		return false;
 	}

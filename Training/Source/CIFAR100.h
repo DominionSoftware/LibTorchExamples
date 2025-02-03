@@ -10,6 +10,7 @@
 
 #include "FileSaver.h"
 #include "ProgressBar.h"
+#include "CIFAR100ClassNames.h"
 
 namespace torch_explorer
 {
@@ -86,9 +87,20 @@ namespace torch_explorer
 				{
 					std::string s;
 					std::stringstream ss(s);
-					ss << i << "_" << superclass_labels_[i].item<int>() << "_" << class_labels_[i].item<int>() << "_image.png";
+					int superClass = superclass_labels_[i].item<int>();
+					std::cout << superClass << std::endl;
 
-					fileSaver->saveAsPNG(images_[i], ss.str());
+					std::string superclassName = CIFAR100ClassNames::instance().getSuperclassName(superClass);
+					int fineClass = class_labels_[i].item<int>();
+					std::cout << fineClass << std::endl;
+					std::string fineclassName = CIFAR100ClassNames::instance().getFineClassName(fineClass);
+
+					ss << i << "_" << superclassName << "_" << fineclassName << "_image.png";
+					std::filesystem::path subdirs(superclassName);
+					subdirs = subdirs / fineclassName;
+
+
+					fileSaver->saveAsPNG(images_[i], subdirs, ss.str());
 				}
 
 			}

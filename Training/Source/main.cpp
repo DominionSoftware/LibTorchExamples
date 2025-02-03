@@ -26,12 +26,12 @@ int main(int ,const char * args[])
 
 		};
 
-	//std::shared_ptr<FileSaver> fileSaver = std::make_shared<FileSaver>(image_folder());
+	std::shared_ptr<torch_explorer::FileSaver> fileSaver = std::make_shared<torch_explorer::FileSaver>(image_folder());
 
 
 	auto dataSetTrain = std::make_shared<torch_explorer::CIFAR100DataSet>(true);
 
- 	dataSetTrain->load(data_folder());
+ 	dataSetTrain->load(data_folder(), fileSaver);
 
 	auto dataSetTest = std::make_shared<torch_explorer::CIFAR100DataSet>(false);
 

@@ -242,9 +242,8 @@ namespace torch_explorer
 
 			auto trainLoader = trainData->getDataLoader();
 			auto testLoader = testData->getDataLoader();
-
 			// Create mapping tensor
-			const auto& mapping_data = CIFAR100ClassNames::FineToCoarse();
+			const auto& mapping_data = CIFAR100ClassNames::instance().FineToCoarse();
 
 			// Create initial tensor on CPU and clone to make it independent
 			auto mapping_tensor = torch::from_blob(

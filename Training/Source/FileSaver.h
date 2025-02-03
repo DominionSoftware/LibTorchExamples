@@ -14,7 +14,7 @@ namespace torch_explorer
 
 		explicit FileSaver(const std::filesystem::path& directory);
 
-		bool saveAsPNG(const at::Tensor& tensor, const std::string& filename);
+		bool saveAsPNG(const at::Tensor& tensor, const std::filesystem::path& subDirs, const std::string& filename);
 
 	protected:
 

@@ -30,6 +30,9 @@ namespace torch_explorer
 
         void load(const std::filesystem::path& root_path, std::shared_ptr<FileSaver> fileSaver = nullptr) override
         {
+
+            CIFAR100ClassNames::instance().loadClassNames(root_path, "coarse_label_names.txt", "fine_label_names.txt");
+
             dataset = torch_explorer::CIFAR100();
             ProgressBar<int64_t> bar;
 
