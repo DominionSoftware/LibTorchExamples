@@ -9,6 +9,7 @@
 
 #include "CIFAR100.h"
 #include "FileSaver.h"
+#include <memory>
 
 
 namespace torch_explorer

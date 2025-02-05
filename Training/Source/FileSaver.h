@@ -2,6 +2,7 @@
 #define FILESAVER_
 #include <filesystem>
 #include <ATen/core/TensorBody.h>
+#include <string>
 
 namespace torch_explorer
 {

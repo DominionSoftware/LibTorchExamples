@@ -71,7 +71,16 @@ set(SOURCE
     CIFAR100Module.h
     CIFAR100ClassNames.h 
     HeirarchicalLoss.h 
-    HeirarchicalLoss.cpp 
+    HeirarchicalLoss.cpp
+    ResidualBlock.h 
+    CIFAR100CoarseModule.h 
+    CIFAR100FineModule.h 
+    TrainSplitModels.h 
+    TrainSplitModels.cpp
+    TrainModelsMultiGPU.h 
+    TrainModelsMultiGPU.cpp 
+    ReduceLROnPlateauScheduler.h 
+    ReduceLROnPlateauScheduler.cpp
     main.cpp
 )
 add_executable(${PROJECT_NAME} 

@@ -1,5 +1,9 @@
 #ifndef CIFAR100CLASS_NAMES_
 #define CIFAR100CLASS_NAMES_
+
+#include <filesystem>
+#include <fstream>
+
 namespace torch_explorer
 {
 
