@@ -65,6 +65,7 @@ set(SOURCE
     TrainModel.h 
     TrainModel.cpp 
     CIFAR100DataSet.h 
+    CIFAR100DataSet.cpp 
     ProgressBar.h 
     FileSaver.h 
     FileSaver.cpp 
@@ -81,6 +82,8 @@ set(SOURCE
     TrainModelsMultiGPU.cpp 
     ReduceLROnPlateauScheduler.h 
     ReduceLROnPlateauScheduler.cpp
+    CutMixTransform.h 
+    BetaDistribution.h 
     main.cpp
 )
 add_executable(${PROJECT_NAME} 

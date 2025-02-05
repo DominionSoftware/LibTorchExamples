@@ -1,8 +1,12 @@
 #ifndef CIFAR100_DATASET_
 #define CIFAR100_DATASET_
 
+#include <random>
+
 #include "IDataSet.h"
 #include <torch/torch.h>
+
+#include "CutMixTransform.h"
 
 namespace torch_explorer
 {
@@ -13,31 +17,14 @@ namespace torch_explorer
     public:
 
 
-        CIFAR100DataSet() :IDataSet(), is_train(false)
-        {
-            options = torch::data::DataLoaderOptions()
-                .batch_size(32)
-                .workers(2);
-        }
+        CIFAR100DataSet();
 
 
-        explicit CIFAR100DataSet(bool is_training) : IDataSet(), is_train(is_training)
-        {
-            options = torch::data::DataLoaderOptions()
-                .batch_size(32)
-                .workers(2);
-        }
+        explicit CIFAR100DataSet(bool is_training);
+       
 
-        void load(const std::filesystem::path& root_path, std::shared_ptr<FileSaver> fileSaver = nullptr) override
-        {
-
-            CIFAR100ClassNames::instance().loadClassNames(root_path, "coarse_label_names.txt", "fine_label_names.txt");
-
-            dataset = torch_explorer::CIFAR100();
-            ProgressBar<int64_t> bar;
-
-            dataset.load(root_path, is_train ? CIFAR100::Mode::kTrain : CIFAR100::Mode::kTest, bar, fileSaver);
-        }
+       void load(const std::filesystem::path& root_path, std::shared_ptr<FileSaver> fileSaver = nullptr) override;
+       
 
         torch::data::Example<> get(size_t index) override
         {
@@ -84,26 +71,34 @@ namespace torch_explorer
             return 100;  // CIFAR-100 has 100 classes
         }
 
-        auto getDataLoader() -> std::unique_ptr<torch::data::StatelessDataLoader<
-            torch::data::datasets::MapDataset<
-            CIFAR100,
-            torch::data::transforms::Normalize<>
-            >,
-            torch::data::samplers::RandomSampler
-            >> override
+        auto getDataLoader() -> std::unique_ptr<torch::data::StatelessDataLoader<torch::data::datasets::MapDataset<
+                                                        CIFAR100,
+                                                        torch::data::transforms::Normalize<>>,
+                                                        torch::data::samplers::RandomSampler>> override;
+       
+        void enableCutMix(float alpha = 1.0, float prob = 0.5)
         {
-            auto normalized_dataset = dataset
-                .map(torch::data::transforms::Normalize<>({ 0.5071, 0.4867, 0.4408 },
-                    { 0.2675, 0.2565, 0.2761 }));
-
-            return torch::data::make_data_loader(std::move(normalized_dataset), options);
+            use_cutmix_ = true;
+            cutmix_ = CutMixTransform(alpha, prob);
         }
 
+        void disableCutMix()
+        {
+            use_cutmix_ = false;
+        }
     private:
+
         CIFAR100 dataset;
+
         torch::data::DataLoaderOptions options;
+
         std::vector<std::function<torch::data::Example<>(torch::data::Example<>)>> transforms;
+
         bool is_train;
+
+        bool use_cutmix_ = false;
+        CutMixTransform cutmix_{ 1.0, 0.5 };
+        std::mt19937 gen_{ std::random_device{}() };
     };
 }
 

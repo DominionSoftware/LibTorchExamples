@@ -34,6 +34,7 @@ int main(int ,const char * args[])
 
 
 	auto dataSetTrain = std::make_shared<torch_explorer::CIFAR100DataSet>(true);
+	dataSetTrain->enableCutMix(1.0, 0.5);
 
  	dataSetTrain->load(data_folder());
 
