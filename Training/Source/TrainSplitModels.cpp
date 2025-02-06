@@ -9,6 +9,18 @@
 
 namespace torch_explorer
 {
+    // Helper function to convert integer labels to one-hot encoding
+    torch::Tensor to_one_hot(const torch::Tensor& labels, int64_t num_classes) {
+        auto one_hot = torch::zeros({labels.size(0), num_classes}, labels.device());
+        return one_hot.scatter_(1, labels.unsqueeze(1), 1);
+    }
+
+    // KL Divergence loss function
+    torch::Tensor kl_divergence_loss(const torch::Tensor& pred_logits, const torch::Tensor& target_probs) {
+        auto log_softmax = torch::log_softmax(pred_logits, 1);
+        return torch::mean(torch::sum(target_probs * (torch::log(target_probs + 1e-10) - log_softmax), 1));
+    }
+
     void TrainSplitModels(std::shared_ptr<CIFAR100CoarseModule> coarse_model,
                          std::shared_ptr<CIFAR100FineModule> fine_model,
                          std::shared_ptr<IDataSet> trainData,
@@ -22,30 +34,22 @@ namespace torch_explorer
         {
             CutMixTransform cutmix(1.0, 0.5);  // alpha=1.0, prob=0.5
             bool use_cutmix = true;
+            const int64_t num_fine_classes = 100;    // CIFAR100 fine classes
+            const int64_t num_coarse_classes = 20;   // CIFAR100 coarse classes
 
             torch::Device device(torch::kCPU);
-            if (torch::cuda::is_available())
-            {
+            if (torch::cuda::is_available()) {
                 std::cout << "CUDA is available! Training on GPU." << std::endl;
                 device = torch::Device(torch::kCUDA);
             }
-
-            auto img_dims = trainData->getInputShape();
-            std::cout << "Starting training with:" << std::endl
-                << "Device: " << (device.is_cuda() ? "GPU" : "CPU") << std::endl
-                << "Coarse learning rate: " << coarse_lr << std::endl
-                << "Fine learning rate: " << fine_lr << std::endl
-                << "CutMix enabled: " << (use_cutmix ? "yes" : "no") << std::endl;
 
             // Move models to device
             coarse_model->to(device);
             fine_model->to(device);
 
-            // Separate optimizers for each model
             torch::optim::Adam coarse_optimizer(coarse_model->parameters(), coarse_lr);
             torch::optim::Adam fine_optimizer(fine_model->parameters(), fine_lr);
 
-            // Separate schedulers
             ReduceLROnPlateauScheduler coarse_scheduler(coarse_optimizer);
             ReduceLROnPlateauScheduler fine_scheduler(fine_optimizer);
 
@@ -60,8 +64,7 @@ namespace torch_explorer
                 torch::TensorOptions().dtype(torch::kInt64)
             ).clone().to(device);
 
-            for (size_t epoch = 0; epoch < num_epochs; ++epoch)
-            {
+            for (size_t epoch = 0; epoch < num_epochs; ++epoch) {
                 size_t batch_idx = 0;
                 float coarse_epoch_loss = 0.0f;
                 float fine_epoch_loss = 0.0f;
@@ -72,59 +75,71 @@ namespace torch_explorer
                 coarse_model->train();
                 fine_model->train();
 
-                for (auto& batch : *trainLoader)
-                {
+                for (auto& batch : *trainLoader) {
                     std::vector<torch::Tensor> data_vec, target_vec;
-                    for (const auto& example : batch)
-                    {
+                    for (const auto& example : batch) {
                         data_vec.push_back(example.data);
                         target_vec.push_back(example.target);
                     }
 
                     auto data = stack(data_vec).to(device);
                     auto fine_target = stack(target_vec).to(torch::kInt64).to(device);
+                    
+                    torch::Tensor fine_target_one_hot;
+                    torch::Tensor coarse_target_one_hot;
 
-                    if (use_cutmix && trainData->isTraining())
-                    {
+                    if (use_cutmix && trainData->isTraining()) {
                         auto example1 = torch::data::Example<>(data, fine_target);
                         auto example2 = torch::data::Example<>(data.clone(), fine_target.clone());
                         auto mixed = cutmix.apply(example1, example2);
                         data = mixed.data;
-                        fine_target = mixed.target;
+                        
+                        // Convert mixed labels to one-hot
+                        auto lambda = mixed.target.max(); // Extract lambda from mixed target
+                        auto target1 = to_one_hot(example1.target, num_fine_classes);
+                        auto target2 = to_one_hot(example2.target, num_fine_classes);
+                        fine_target_one_hot = lambda * target1 + (1 - lambda) * target2;
+                        
+                        // Handle coarse labels
+                        auto coarse_target1 = to_one_hot(mapping_tensor.index_select(0, example1.target), num_coarse_classes);
+                        auto coarse_target2 = to_one_hot(mapping_tensor.index_select(0, example2.target), num_coarse_classes);
+                        coarse_target_one_hot = lambda * coarse_target1 + (1 - lambda) * coarse_target2;
+                    } else {
+                        fine_target_one_hot = to_one_hot(fine_target, num_fine_classes);
+                        coarse_target_one_hot = to_one_hot(mapping_tensor.index_select(0, fine_target), num_coarse_classes);
                     }
-
-                    auto coarse_target = mapping_tensor.index_select(0, fine_target.to(torch::kInt64));
 
                     // Train coarse model
                     {
                         coarse_optimizer.zero_grad();
                         auto coarse_out = coarse_model->forward(data);
-                        auto coarse_loss = torch::nn::functional::cross_entropy(coarse_out, coarse_target);
+                        auto coarse_loss = kl_divergence_loss(coarse_out, coarse_target_one_hot);
                         coarse_loss.backward();
                         coarse_optimizer.step();
                         coarse_epoch_loss += coarse_loss.item<float>();
 
                         auto pred_coarse = coarse_out.argmax(1);
-                        num_correct_coarse += pred_coarse.eq(coarse_target).sum().item<int64_t>();
+                        auto true_coarse = coarse_target_one_hot.argmax(1);
+                        num_correct_coarse += pred_coarse.eq(true_coarse).sum().item<int64_t>();
                     }
 
                     // Train fine model
                     {
                         fine_optimizer.zero_grad();
                         auto fine_out = fine_model->forward(data);
-                        auto fine_loss = torch::nn::functional::cross_entropy(fine_out, fine_target);
+                        auto fine_loss = kl_divergence_loss(fine_out, fine_target_one_hot);
                         fine_loss.backward();
                         fine_optimizer.step();
                         fine_epoch_loss += fine_loss.item<float>();
 
                         auto pred_fine = fine_out.argmax(1);
-                        num_correct_fine += pred_fine.eq(fine_target).sum().item<int64_t>();
+                        auto true_fine = fine_target_one_hot.argmax(1);
+                        num_correct_fine += pred_fine.eq(true_fine).sum().item<int64_t>();
                     }
 
                     num_samples += fine_target.size(0);
 
-                    if (batch_idx % logInterval == 0)
-                    {
+                    if (batch_idx % logInterval == 0) {
                         std::cout << "Train Epoch: " << epoch
                             << " [" << batch_idx * fine_target.size(0) << "/"
                             << trainData->size().value() << "] "
@@ -136,11 +151,9 @@ namespace torch_explorer
                     batch_idx++;
                 }
 
-                float accuracy_fine = static_cast<float>(num_correct_fine) / num_samples;
-                float accuracy_coarse = static_cast<float>(num_correct_coarse) / num_samples;
-                coarse_epoch_loss /= batch_idx;
-                fine_epoch_loss /= batch_idx;
-
+                // Rest of the code (validation loop) remains similar but uses one-hot encoding
+                // for validation metrics...
+                
                 // Validation phase
                 coarse_model->eval();
                 fine_model->eval();
@@ -153,39 +166,44 @@ namespace torch_explorer
                 num_samples = 0;
                 batch_idx = 0;
 
-                for (const auto& batch : *testLoader)
-                {
+                for (const auto& batch : *testLoader) {
                     std::vector<torch::Tensor> data_vec, target_vec;
-                    for (const auto& example : batch)
-                    {
+                    for (const auto& example : batch) {
                         data_vec.push_back(example.data);
                         target_vec.push_back(example.target);
                     }
 
                     auto data = stack(data_vec).to(device);
                     auto fine_target = stack(target_vec).to(torch::kInt64).to(device);
-                    auto coarse_target = mapping_tensor.index_select(0, fine_target.to(torch::kInt64));
+                    
+                    // Convert to one-hot for validation
+                    auto fine_target_one_hot = to_one_hot(fine_target, num_fine_classes);
+                    auto coarse_target_one_hot = to_one_hot(
+                        mapping_tensor.index_select(0, fine_target),
+                        num_coarse_classes
+                    );
 
                     auto coarse_out = coarse_model->forward(data);
                     auto fine_out = fine_model->forward(data);
 
-                    test_coarse_loss += torch::nn::functional::cross_entropy(
-                        coarse_out, coarse_target).item<float>();
-                    test_fine_loss += torch::nn::functional::cross_entropy(
-                        fine_out, fine_target).item<float>();
+                    test_coarse_loss += kl_divergence_loss(coarse_out, coarse_target_one_hot).item<float>();
+                    test_fine_loss += kl_divergence_loss(fine_out, fine_target_one_hot).item<float>();
 
                     auto pred_fine = fine_out.argmax(1);
                     auto pred_coarse = coarse_out.argmax(1);
-                    num_correct_fine += pred_fine.eq(fine_target).sum().item<int64_t>();
-                    num_correct_coarse += pred_coarse.eq(coarse_target).sum().item<int64_t>();
+                    auto true_fine = fine_target_one_hot.argmax(1);
+                    auto true_coarse = coarse_target_one_hot.argmax(1);
+                    
+                    num_correct_fine += pred_fine.eq(true_fine).sum().item<int64_t>();
+                    num_correct_coarse += pred_coarse.eq(true_coarse).sum().item<int64_t>();
                     num_samples += fine_target.size(0);
                     batch_idx++;
                 }
 
                 test_coarse_loss /= batch_idx;
                 test_fine_loss /= batch_idx;
-                accuracy_fine = static_cast<float>(num_correct_fine) / num_samples;
-                accuracy_coarse = static_cast<float>(num_correct_coarse) / num_samples;
+                float accuracy_fine = static_cast<float>(num_correct_fine) / num_samples;
+                float accuracy_coarse = static_cast<float>(num_correct_coarse) / num_samples;
 
                 std::cout << "Test set: "
                     << "Coarse Loss: " << test_coarse_loss
@@ -193,7 +211,6 @@ namespace torch_explorer
                     << " Coarse Accuracy: " << accuracy_coarse * 100.0f << "%"
                     << " Fine Accuracy: " << accuracy_fine * 100.0f << "%" << std::endl;
 
-                // Update learning rates
                 coarse_scheduler.doStep(test_coarse_loss);
                 fine_scheduler.doStep(test_fine_loss);
 
@@ -202,8 +219,7 @@ namespace torch_explorer
                     << " Fine: " << fine_optimizer.defaults().get_lr() << std::endl;
             }
         }
-        catch (const std::exception& ex)
-        {
+        catch (const std::exception& ex) {
             std::cout << ex.what() << std::endl;
         }
     }
