@@ -90,6 +90,7 @@ set(SOURCE
     OneHot.cpp 
     KullbackLieblerDivergenceLoss.h
     KullbackLieblerDivergenceLoss.cpp 
+    HybridOptimizer.h
     main.cpp
 )
 add_executable(${PROJECT_NAME} 

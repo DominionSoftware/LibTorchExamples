@@ -7,15 +7,25 @@
 #include "CIFAR100FineModule.h"
 #include "CosineAnnealingScheduler.h"
 #include "IDataSet.h"
-#include "ReduceLROnPlateauScheduler.h"
 #include "CutMixTransform.h"
 #include "OneHot.h"
 #include "KullbackLieblerDivergenceLoss.h"
+#include "HybridOptimizer.h"
 
 namespace torch_explorer
 {
 
+	void OptimizerSwitch(HybridOptimizer& optimizer,CosineAnnealingScheduler& scheduler,double new_lr = 0.001)
+	{
+		// Reset scheduler with new learning rate
+		scheduler.resetScheduler(new_lr);
 
+		// Set initial learning rate for new optimizer
+		for (auto& group : optimizer.current().param_groups()) 
+		{
+			group.options().set_lr(new_lr);
+		}
+	}
 	
 
 	void TrainSplitModelsMultiGPU(
@@ -60,16 +70,14 @@ namespace torch_explorer
 			coarse_model->to(coarse_device);
 			fine_model->to(fine_device);
 
-			torch::optim::Adam coarse_optimizer(coarse_model->parameters(), coarse_lr);
+			HybridOptimizer coarse_optimizer(coarse_model, coarse_lr,2);
 
-			torch::optim::Adam fine_optimizer(
-				fine_model->parameters(),
-				torch::optim::AdamOptions(fine_lr).weight_decay(1e-4)  // Add weight decay here
-			);
+			HybridOptimizer fine_optimizer(fine_model, fine_lr, 2);
+				
 
 			// Create learning rate schedulers
-			CosineAnnealingScheduler coarse_scheduler(coarse_optimizer,10,1e-6,2);
-			CosineAnnealingScheduler fine_scheduler(fine_optimizer,10,1e-6,2);
+			CosineAnnealingScheduler coarse_scheduler(coarse_optimizer,5,1e-4,2);
+			CosineAnnealingScheduler fine_scheduler(fine_optimizer,5,1e-4,2);
 
 			auto trainLoader = trainData->getDataLoader();
 			auto testLoader = testData->getDataLoader();
@@ -254,8 +262,23 @@ namespace torch_explorer
 				float test_coarse_acc = static_cast<float>(num_correct_coarse) / num_samples;
 				float test_fine_acc = static_cast<float>(num_correct_fine) / num_samples;
 
+
+				bool coarse_changed = coarse_optimizer.epoch_step(coarse_epoch_loss);
+				bool fine_changed  = fine_optimizer.epoch_step(fine_epoch_loss);
+				if (coarse_changed)
+				{
+					OptimizerSwitch(coarse_optimizer, coarse_scheduler);
+				}
+
+				if (fine_changed)
+				{
+					OptimizerSwitch(fine_optimizer, fine_scheduler);
+				}
+
+
 				coarse_scheduler.doStep(test_coarse_loss);
 				fine_scheduler.doStep(test_fine_loss);
+				
 
 				std::cout << "\nEpoch " << epoch << " Summary:\n"
 					<< "Training - Coarse: loss=" << coarse_epoch_loss

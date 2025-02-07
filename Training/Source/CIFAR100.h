@@ -102,8 +102,8 @@ namespace torch_explorer
 
 					fileSaver->saveAsPNG(images_[i], subdirs, ss.str());
 				}
-
 			}
+			progressBar.progress(num_samples, num_samples);
 
 			images_ = images_.to(torch::kFloat32).div_(255);
 		}
