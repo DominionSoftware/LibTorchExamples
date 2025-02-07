@@ -41,7 +41,7 @@ namespace torch_explorer
             fine_model->to(device);
 
             torch::optim::Adam coarse_optimizer(coarse_model->parameters(), coarse_lr);
-            torch::optim::Adam fine_optimizer(fine_model->parameters(), fine_lr);
+            torch::optim::Adam fine_optimizer(fine_model->parameters(), torch::optim::AdamOptions(fine_lr).weight_decay(1e-4));
 
             ReduceLROnPlateauScheduler coarse_scheduler(coarse_optimizer);
             ReduceLROnPlateauScheduler fine_scheduler(fine_optimizer);
