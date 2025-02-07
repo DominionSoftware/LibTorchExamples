@@ -82,8 +82,14 @@ set(SOURCE
     TrainModelsMultiGPU.cpp 
     ReduceLROnPlateauScheduler.h 
     ReduceLROnPlateauScheduler.cpp
+    CosineAnnealingScheduler.h 
+    CosineAnnealingScheduler.cpp 
     CutMixTransform.h 
     BetaDistribution.h 
+    OneHot.h 
+    OneHot.cpp 
+    KullbackLieblerDivergenceLoss.h
+    KullbackLieblerDivergenceLoss.cpp 
     main.cpp
 )
 add_executable(${PROJECT_NAME} 

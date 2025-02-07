@@ -6,20 +6,13 @@
 #include "ReduceLROnPlateauScheduler.h"
 #include "CutMixTransform.h"
 #include <memory>
+#include "OneHot.h"
+#include "KullbackLieblerDivergenceLoss.h"
+
 
 namespace torch_explorer
 {
-    // Helper function to convert integer labels to one-hot encoding
-    torch::Tensor to_one_hot(const torch::Tensor& labels, int64_t num_classes) {
-        auto one_hot = torch::zeros({labels.size(0), num_classes}, labels.device());
-        return one_hot.scatter_(1, labels.unsqueeze(1), 1);
-    }
-
-    // KL Divergence loss function
-    torch::Tensor kl_divergence_loss(const torch::Tensor& pred_logits, const torch::Tensor& target_probs) {
-        auto log_softmax = torch::log_softmax(pred_logits, 1);
-        return torch::mean(torch::sum(target_probs * (torch::log(target_probs + 1e-10) - log_softmax), 1));
-    }
+    
 
     void TrainSplitModels(std::shared_ptr<CIFAR100CoarseModule> coarse_model,
                          std::shared_ptr<CIFAR100FineModule> fine_model,

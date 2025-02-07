@@ -5,236 +5,275 @@
 #include "CIFAR100ClassNames.h"
 #include "CIFAR100CoarseModule.h"
 #include "CIFAR100FineModule.h"
+#include "CosineAnnealingScheduler.h"
 #include "IDataSet.h"
 #include "ReduceLROnPlateauScheduler.h"
 #include "CutMixTransform.h"
+#include "OneHot.h"
+#include "KullbackLieblerDivergenceLoss.h"
 
 namespace torch_explorer
 {
-   void TrainSplitModelsMultiGPU(
-       std::shared_ptr<CIFAR100CoarseModule> coarse_model,
-       std::shared_ptr<CIFAR100FineModule> fine_model,
-       std::shared_ptr<IDataSet> trainData,
-       std::shared_ptr<IDataSet> testData,
-       size_t num_epochs,
-       double coarse_lr,
-       double fine_lr,
-       size_t logInterval)
-   {
-       try
-       {
-           CutMixTransform cutmix(1.0, 0.5);  // alpha=1.0, prob=0.5
-           bool use_cutmix = true;
 
-           if (!torch::cuda::is_available())
-           {
-               throw std::runtime_error("CUDA is not available");
-           }
 
-           const auto device_count = torch::cuda::device_count();
-           if (device_count < 2)
-           {
-               throw std::runtime_error("Need at least 2 GPUs, found " +
-                   std::to_string(device_count));
-           }
+	
 
-           torch::Device coarse_device(torch::kCUDA, 0);
-           torch::Device fine_device(torch::kCUDA, 1);
+	void TrainSplitModelsMultiGPU(
+		std::shared_ptr<CIFAR100CoarseModule> coarse_model,
+		std::shared_ptr<CIFAR100FineModule> fine_model,
+		std::shared_ptr<IDataSet> trainData,
+		std::shared_ptr<IDataSet> testData,
+		size_t num_epochs,
+		double coarse_lr,
+		double fine_lr,
+		size_t logInterval)
+	{
+		try
+		{
+			CutMixTransform cutmix(1.0, 0.5); 
+			bool use_cutmix = true;
+			constexpr int64_t num_fine_classes = 100; // CIFAR100 fine classes
+			constexpr int64_t num_coarse_classes = 20; // CIFAR100 coarse classes
 
-           std::cout << "Using " << device_count << " GPUs\n"
-               << "Coarse model on GPU 0\n"
-               << "Fine model on GPU 1\n"
-               << "Learning rates - Coarse: " << coarse_lr
-               << ", Fine: " << fine_lr 
-               << "\nCutMix enabled: " << (use_cutmix ? "yes" : "no") << std::endl;
+			if (!torch::cuda::is_available())
+			{
+				throw std::runtime_error("CUDA is not available");
+			}
 
-           coarse_model->to(coarse_device);
-           fine_model->to(fine_device);
+			const auto device_count = torch::cuda::device_count();
+			if (device_count < 2)
+			{
+				throw std::runtime_error("Need at least 2 GPUs, found " +
+					std::to_string(device_count));
+			}
 
-           torch::optim::Adam coarse_optimizer(coarse_model->parameters(), coarse_lr);
-           torch::optim::Adam fine_optimizer(fine_model->parameters(), fine_lr);
+			torch::Device coarse_device(torch::kCUDA, 0);
+			torch::Device fine_device(torch::kCUDA, 1);
 
-           // Create learning rate schedulers
-           ReduceLROnPlateauScheduler coarse_scheduler(coarse_optimizer);
-           ReduceLROnPlateauScheduler fine_scheduler(fine_optimizer);
+			std::cout << "Using " << device_count << " GPUs\n"
+				<< "Coarse model on GPU 0\n"
+				<< "Fine model on GPU 1\n"
+				<< "Learning rates - Coarse: " << coarse_lr
+				<< ", Fine: " << fine_lr
+				<< "\nCutMix enabled: " << (use_cutmix ? "yes" : "no") << std::endl;
 
-           auto trainLoader = trainData->getDataLoader();
-           auto testLoader = testData->getDataLoader();
+			coarse_model->to(coarse_device);
+			fine_model->to(fine_device);
 
-           const auto& mapping_data = CIFAR100ClassNames::instance().FineToCoarse();
-           auto mapping_tensor = torch::tensor(
-               std::vector<int64_t>(mapping_data.begin(), mapping_data.end()),
-               torch::TensorOptions().dtype(torch::kInt64).device(coarse_device)
-           );
+			torch::optim::Adam coarse_optimizer(coarse_model->parameters(), coarse_lr);
 
-           for (size_t epoch = 0; epoch < num_epochs; ++epoch)
-           {
-               coarse_model->train();
-               fine_model->train();
+			torch::optim::Adam fine_optimizer(
+				fine_model->parameters(),
+				torch::optim::AdamOptions(fine_lr).weight_decay(1e-4)  // Add weight decay here
+			);
 
-               size_t batch_idx = 0;
-               float coarse_epoch_loss = 0.0f;
-               float fine_epoch_loss = 0.0f;
-               size_t num_correct_coarse = 0;
-               size_t num_correct_fine = 0;
-               size_t num_samples = 0;
+			// Create learning rate schedulers
+			CosineAnnealingScheduler coarse_scheduler(coarse_optimizer,10,1e-6,2);
+			CosineAnnealingScheduler fine_scheduler(fine_optimizer,10,1e-6,2);
 
-               for (auto& batch : *trainLoader)
-               {
-                   std::vector<torch::Tensor> data_vec, target_vec;
-                   for (const auto& example : batch)
-                   {
-                       data_vec.push_back(example.data);
-                       target_vec.push_back(example.target.to(torch::kInt64));
-                   }
+			auto trainLoader = trainData->getDataLoader();
+			auto testLoader = testData->getDataLoader();
 
-                   auto data = stack(data_vec);
-                   auto target = stack(target_vec);
-                   
-                   if (use_cutmix && trainData->isTraining())
-                   {
-                       auto example1 = torch::data::Example<>(data, target);
-                       auto example2 = torch::data::Example<>(data.clone(), target.clone());
-                       auto mixed = cutmix.apply(example1, example2);
-                       data = mixed.data;
-                       target = mixed.target;
-                   }
+			const auto& mapping_data = CIFAR100ClassNames::instance().FineToCoarse();
+			auto mapping_tensor = torch::tensor(
+				std::vector<int64_t>(mapping_data.begin(), mapping_data.end()),
+				torch::TensorOptions().dtype(torch::kInt64).device(coarse_device)
+			);
 
-                   auto data_coarse = data.to(coarse_device);
-                   auto data_fine = data.to(fine_device);
-                   auto target_coarse = target.to(coarse_device);
-                   auto target_fine = target.to(fine_device);
+			for (size_t epoch = 0; epoch < num_epochs; ++epoch)
+			{
+				coarse_model->train();
+				fine_model->train();
 
-                   auto coarse_target = mapping_tensor.index_select(0, target_coarse.to(torch::kInt64));
+				size_t batch_idx = 0;
+				float coarse_epoch_loss = 0.0f;
+				float fine_epoch_loss = 0.0f;
+				size_t num_correct_coarse = 0;
+				size_t num_correct_fine = 0;
+				size_t num_samples = 0;
 
-                   // Train coarse model on GPU 0
-                   {
-                       coarse_optimizer.zero_grad();
-                       auto coarse_out = coarse_model->forward(data_coarse);
-                       auto coarse_loss = torch::nn::functional::cross_entropy(
-                           coarse_out, coarse_target);
-                       coarse_loss.backward();
-                       coarse_optimizer.step();
+				for (auto& batch : *trainLoader)
+				{
+					std::vector<torch::Tensor> data_vec, target_vec;
+					for (const auto& example : batch)
+					{
+						data_vec.push_back(example.data);
+						target_vec.push_back(example.target);
+					}
 
-                       coarse_epoch_loss += coarse_loss.item<float>();
-                       auto pred_coarse = coarse_out.argmax(1);
-                       num_correct_coarse += pred_coarse.eq(coarse_target)
-                                                    .sum().item<int64_t>();
-                   }
+					auto data = stack(data_vec);
+					auto fine_target = stack(target_vec).to(torch::kInt64);
 
-                   // Train fine model on GPU 1
-                   {
-                       fine_optimizer.zero_grad();
-                       auto fine_out = fine_model->forward(data_fine);
-                       auto fine_loss = torch::nn::functional::cross_entropy(
-                           fine_out, target_fine);
-                       fine_loss.backward();
-                       fine_optimizer.step();
+					torch::Tensor fine_target_one_hot;
+					torch::Tensor coarse_target_one_hot;
 
-                       fine_epoch_loss += fine_loss.item<float>();
-                       auto pred_fine = fine_out.argmax(1);
-                       num_correct_fine += pred_fine.eq(target_fine)
-                                                .sum().item<int64_t>();
-                   }
+                    if (use_cutmix && trainData->isTraining())
+                    {
+                        auto example1 = torch::data::Example<>(data, fine_target);
+                        auto example2 = torch::data::Example<>(data.clone(), fine_target.clone());
+                        auto mixed = cutmix.apply(example1, example2);
+                        data = mixed.data;
+                        
+                        // Move targets to appropriate device before operations
+                        auto target1_gpu = example1.target.to(coarse_device);
+                        auto target2_gpu = example2.target.to(coarse_device);
+                        
+                        // Convert mixed labels to one-hot
+                        auto lambda = mixed.target.max(); // Extract lambda from mixed target
+                        auto target1 = to_one_hot(target1_gpu, num_fine_classes);
+                        auto target2 = to_one_hot(target2_gpu, num_fine_classes);
+                        fine_target_one_hot = lambda * target1 + (1 - lambda) * target2;
+                        
+                        // Handle coarse labels
+                        auto coarse_target1 = to_one_hot(mapping_tensor.index_select(0, target1_gpu), num_coarse_classes);
+                        auto coarse_target2 = to_one_hot(mapping_tensor.index_select(0, target2_gpu), num_coarse_classes);
+                        coarse_target_one_hot = lambda * coarse_target1 + (1 - lambda) * coarse_target2;
+                    }
+                    else
+                    {
+                        // Move target to appropriate device before operations
+                        auto fine_target_gpu = fine_target.to(coarse_device);
+                        fine_target_one_hot = to_one_hot(fine_target_gpu, num_fine_classes);
+                        coarse_target_one_hot = to_one_hot(mapping_tensor.index_select(0, fine_target_gpu), num_coarse_classes);
+                    }
 
-                   num_samples += target_fine.size(0);
+					auto data_coarse = data.to(coarse_device);
+					auto data_fine = data.to(fine_device);
+					coarse_target_one_hot = coarse_target_one_hot.to(coarse_device);
+					fine_target_one_hot = fine_target_one_hot.to(fine_device);
 
-                   if (batch_idx % logInterval == 0)
-                   {
-                       std::cout << "Train Epoch: " << epoch
-                           << " [" << batch_idx * target_fine.size(0) << "/"
-                           << trainData->size().value() << "]\n"
-                           << "Coarse Loss: " << std::fixed << std::setprecision(4)
-                           << coarse_epoch_loss / (batch_idx + 1)
-                           << " Fine Loss: "
-                           << fine_epoch_loss / (batch_idx + 1) << std::endl;
-                   }
-                   batch_idx++;
-               }
+					// Train coarse model on GPU 0
+					{
+						coarse_optimizer.zero_grad();
+						auto coarse_out = coarse_model->forward(data_coarse);
+						auto coarse_loss = kl_divergence_loss(coarse_out, coarse_target_one_hot);
+						coarse_loss.backward();
+						coarse_optimizer.step();
 
-               float train_coarse_acc = static_cast<float>(num_correct_coarse) / num_samples;
-               float train_fine_acc = static_cast<float>(num_correct_fine) / num_samples;
-               coarse_epoch_loss /= batch_idx;
-               fine_epoch_loss /= batch_idx;
+						coarse_epoch_loss += coarse_loss.item<float>();
+						auto pred_coarse = coarse_out.argmax(1);
+						auto true_coarse = coarse_target_one_hot.argmax(1);
+						num_correct_coarse += pred_coarse.eq(true_coarse).sum().item<int64_t>();
+					}
 
-               // Validation phase
-               coarse_model->eval();
-               fine_model->eval();
-               float test_coarse_loss = 0.0f;
-               float test_fine_loss = 0.0f;
-               num_correct_coarse = 0;
-               num_correct_fine = 0;
-               num_samples = 0;
-               batch_idx = 0;
+					// Train fine model on GPU 1
+					{
+						fine_optimizer.zero_grad();
+						auto fine_out = fine_model->forward(data_fine);
+						auto fine_loss = kl_divergence_loss(fine_out, fine_target_one_hot);
+						fine_loss.backward();
+						fine_optimizer.step();
 
-               {
-                   torch::NoGradGuard no_grad;
+						fine_epoch_loss += fine_loss.item<float>();
+						auto pred_fine = fine_out.argmax(1);
+						auto true_fine = fine_target_one_hot.argmax(1);
+						num_correct_fine += pred_fine.eq(true_fine).sum().item<int64_t>();
+					}
 
-                   for (const auto& batch : *testLoader)
-                   {
-                       std::vector<torch::Tensor> data_vec, target_vec;
-                       for (const auto& example : batch)
-                       {
-                           data_vec.push_back(example.data);
-                           target_vec.push_back(example.target.to(torch::kInt64));
-                       }
+					num_samples += fine_target.size(0);
 
-                       auto data = stack(data_vec);
-                       auto target = stack(target_vec);
+					if (batch_idx % logInterval == 0)
+					{
+						std::cout << "Train Epoch: " << epoch
+							<< " [" << batch_idx * fine_target.size(0) << "/"
+							<< trainData->size().value() << "]\n"
+							<< "Coarse Loss: " << std::fixed << std::setprecision(4)
+							<< coarse_epoch_loss / (batch_idx + 1)
+							<< " Fine Loss: "
+							<< fine_epoch_loss / (batch_idx + 1) << std::endl;
+					}
+					batch_idx++;
+				}
 
-                       auto data_coarse = data.to(coarse_device);
-                       auto data_fine = data.to(fine_device);
-                       auto target_coarse = target.to(coarse_device);
-                       auto target_fine = target.to(fine_device);
+				float train_coarse_acc = static_cast<float>(num_correct_coarse) / num_samples;
+				float train_fine_acc = static_cast<float>(num_correct_fine) / num_samples;
+				coarse_epoch_loss /= batch_idx;
+				fine_epoch_loss /= batch_idx;
 
-                       auto coarse_target = mapping_tensor.index_select(0, target_coarse.to(torch::kInt64));
+				// Validation phase
+				coarse_model->eval();
+				fine_model->eval();
+				float test_coarse_loss = 0.0f;
+				float test_fine_loss = 0.0f;
+				num_correct_coarse = 0;
+				num_correct_fine = 0;
+				num_samples = 0;
+				batch_idx = 0;
 
-                       auto coarse_out = coarse_model->forward(data_coarse);
-                       auto fine_out = fine_model->forward(data_fine);
+				{
+					torch::NoGradGuard no_grad;
 
-                       test_coarse_loss += torch::nn::functional::cross_entropy(
-                           coarse_out, coarse_target).item<float>();
-                       test_fine_loss += torch::nn::functional::cross_entropy(
-                           fine_out, target_fine).item<float>();
+					for (const auto& batch : *testLoader)
+					{
+						std::vector<torch::Tensor> data_vec, target_vec;
+						for (const auto& example : batch)
+						{
+							data_vec.push_back(example.data);
+							target_vec.push_back(example.target);
+						}
 
-                       auto pred_coarse = coarse_out.argmax(1);
-                       auto pred_fine = fine_out.argmax(1);
+						auto data = stack(data_vec);
+						auto fine_target = stack(target_vec).to(torch::kInt64);
 
-                       num_correct_coarse += pred_coarse.eq(coarse_target)
-                                                    .sum().item<int64_t>();
-                       num_correct_fine += pred_fine.eq(target_fine)
-                                                .sum().item<int64_t>();
+						auto data_coarse = data.to(coarse_device);
+						auto data_fine = data.to(fine_device);
 
-                       num_samples += target_fine.size(0);
-                       batch_idx++;
-                   }
-               }
+                        // Convert to one-hot for validation
+                        // Move target to appropriate device before operations
+                        auto fine_target_gpu = fine_target.to(coarse_device);
+                        auto fine_target_one_hot = to_one_hot(fine_target_gpu, num_fine_classes);
+                        auto coarse_target_one_hot = to_one_hot(
+                            mapping_tensor.index_select(0, fine_target_gpu),
+                            num_coarse_classes
+                        );
 
-               test_coarse_loss /= batch_idx;
-               test_fine_loss /= batch_idx;
-               float test_coarse_acc = static_cast<float>(num_correct_coarse) / num_samples;
-               float test_fine_acc = static_cast<float>(num_correct_fine) / num_samples;
+						coarse_target_one_hot = coarse_target_one_hot.to(coarse_device);
+						fine_target_one_hot = fine_target_one_hot.to(fine_device);
 
-               coarse_scheduler.doStep(test_coarse_loss);
-               fine_scheduler.doStep(test_fine_loss);
+						auto coarse_out = coarse_model->forward(data_coarse);
+						auto fine_out = fine_model->forward(data_fine);
 
-               std::cout << "\nEpoch " << epoch << " Summary:\n"
-                   << "Training - Coarse: loss=" << coarse_epoch_loss
-                   << ", acc=" << train_coarse_acc * 100.0f << "%\n"
-                   << "Training - Fine: loss=" << fine_epoch_loss
-                   << ", acc=" << train_fine_acc * 100.0f << "%\n"
-                   << "Validation - Coarse: loss=" << test_coarse_loss
-                   << ", acc=" << test_coarse_acc * 100.0f << "%\n"
-                   << "Validation - Fine: loss=" << test_fine_loss
-                   << ", acc=" << test_fine_acc * 100.0f << "%\n"
-                   << "Learning rates - Coarse: " << coarse_scheduler.getLearningRates()
-                   << ", Fine: " << fine_scheduler.getLearningRates()
-                   << std::endl;
-           }
-       }
-       catch (const std::exception& ex)
-       {
-           std::cout << "Error: " << ex.what() << std::endl;
-       }
-   }
+						test_coarse_loss += kl_divergence_loss(coarse_out, coarse_target_one_hot).item<float>();
+						test_fine_loss += kl_divergence_loss(fine_out, fine_target_one_hot).item<float>();
+
+						auto pred_coarse = coarse_out.argmax(1);
+						auto pred_fine = fine_out.argmax(1);
+						auto true_coarse = coarse_target_one_hot.argmax(1);
+						auto true_fine = fine_target_one_hot.argmax(1);
+
+						num_correct_coarse += pred_coarse.eq(true_coarse).sum().item<int64_t>();
+						num_correct_fine += pred_fine.eq(true_fine).sum().item<int64_t>();
+
+						num_samples += fine_target.size(0);
+						batch_idx++;
+					}
+				}
+
+				test_coarse_loss /= batch_idx;
+				test_fine_loss /= batch_idx;
+				float test_coarse_acc = static_cast<float>(num_correct_coarse) / num_samples;
+				float test_fine_acc = static_cast<float>(num_correct_fine) / num_samples;
+
+				coarse_scheduler.doStep(test_coarse_loss);
+				fine_scheduler.doStep(test_fine_loss);
+
+				std::cout << "\nEpoch " << epoch << " Summary:\n"
+					<< "Training - Coarse: loss=" << coarse_epoch_loss
+					<< ", acc=" << train_coarse_acc * 100.0f << "%\n"
+					<< "Training - Fine: loss=" << fine_epoch_loss
+					<< ", acc=" << train_fine_acc * 100.0f << "%\n"
+					<< "Validation - Coarse: loss=" << test_coarse_loss
+					<< ", acc=" << test_coarse_acc * 100.0f << "%\n"
+					<< "Validation - Fine: loss=" << test_fine_loss
+					<< ", acc=" << test_fine_acc * 100.0f << "%\n"
+					<< "Learning rates - Coarse: " << coarse_scheduler.getLearningRates()
+					<< ", Fine: " << fine_scheduler.getLearningRates()
+					<< std::endl;
+			}
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Error: " << ex.what() << std::endl;
+		}
+	}
 } // namespace torch_explorer
