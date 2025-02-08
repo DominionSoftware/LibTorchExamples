@@ -143,9 +143,6 @@ namespace torch_explorer
                     }
                     batch_idx++;
                 }
-
-                // Rest of the code (validation loop) remains similar but uses one-hot encoding
-                // for validation metrics...
                 
                 // Validation phase
                 coarse_model->eval();

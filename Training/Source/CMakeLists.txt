@@ -62,17 +62,12 @@ endif()
 set(SOURCE 
     IDataSet.h 
     CIFAR100.h 
-    TrainModel.h 
-    TrainModel.cpp 
     CIFAR100DataSet.h 
     CIFAR100DataSet.cpp 
     ProgressBar.h 
     FileSaver.h 
     FileSaver.cpp 
-    CIFAR100Module.h
     CIFAR100ClassNames.h 
-    HeirarchicalLoss.h 
-    HeirarchicalLoss.cpp
     ResidualBlock.h 
     CIFAR100CoarseModule.h 
     CIFAR100FineModule.h 

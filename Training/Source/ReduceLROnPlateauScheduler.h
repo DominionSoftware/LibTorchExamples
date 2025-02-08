@@ -14,7 +14,7 @@ namespace torch_explorer
 	public:
 		ReduceLROnPlateauScheduler(torch::optim::Optimizer& optimizer,
 			double factor = 0.1,
-			size_t patience = 10,
+			size_t epoch_tolerance = 10,
 			double min_lr = 1e-6,
 			double threshold = 1e-4);
 
@@ -39,7 +39,7 @@ namespace torch_explorer
 			std::vector<double> new_lrs;
 
 			// If we've waited long enough with no improvement
-			if (bad_epochs_ >= patience_)
+			if (bad_epochs_ >= epoch_tolerance_)
 			{
 				for (double lr : current_lrs)
 				{
@@ -60,7 +60,7 @@ namespace torch_explorer
 
 	private:
 		double factor_;
-		size_t patience_;
+		size_t epoch_tolerance_;
 		double min_lr_;
 		double threshold_;
 		double best_loss_;

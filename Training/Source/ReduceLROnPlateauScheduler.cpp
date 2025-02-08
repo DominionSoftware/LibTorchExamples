@@ -7,11 +7,11 @@ using namespace torch_explorer;
 
 ReduceLROnPlateauScheduler::ReduceLROnPlateauScheduler(torch::optim::Optimizer& optimizer,
 	double factor,
-	size_t patience,
+	size_t epoch_tolerance_,
 	double min_lr,
 	double threshold) : LRScheduler(optimizer),
 								factor_(factor),
-								patience_(patience),
+								epoch_tolerance_(epoch_tolerance_),
 								min_lr_(min_lr),
 								threshold_(threshold),
 								best_loss_(std::numeric_limits<double>::max()),
