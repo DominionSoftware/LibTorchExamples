@@ -3,10 +3,10 @@
 
 #include <random>
 
-#include "IDataSet.h"
+#include "../Common/IDataSet.h"
 #include <torch/torch.h>
 
-#include "CutMixTransform.h"
+#include "../Common/CutMixTransform.h"
 
 namespace torch_explorer
 {

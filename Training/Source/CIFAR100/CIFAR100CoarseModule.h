@@ -2,8 +2,7 @@
 #define CIFAR100COARSE_MODULE_
 #include <torch/torch.h>
 #include <memory>
-#include "ResidualBlock.h"
-#include <inttypes.h>
+#include "../Common/ResidualBlock.h"
 #include <vector>
 #include "torch/nn/module.h"
 

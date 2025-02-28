@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.18)
 
 
-project(Training LANGUAGES CXX CUDA)
+project(CIFAR100 LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -58,47 +58,49 @@ if(USE_CUDNN)
         NO_DEFAULT_PATH
         REQUIRED)
 endif()
+set(COMMON 
+    ../Common/IDataSet.h 
+    ../Common/ProgressBar.h 
+    ../Common/FileSaver.h 
+    ../Common/FileSaver.cpp 
+    ../Common/ResidualBlock.h 
+    ../Common/TrainSplitModels.h 
+    ../Common/TrainSplitModels.cpp
+    ../Common/TrainModelsMultiGPU.h 
+    ../Common/TrainModelsMultiGPU.cpp 
+    ../Common/ReduceLROnPlateauScheduler.h 
+    ../Common/ReduceLROnPlateauScheduler.cpp
+    ../Common/CosineAnnealingScheduler.h 
+    ../Common/CosineAnnealingScheduler.cpp 
+    ../Common/CutMixTransform.h 
+    ../Common/BetaDistribution.h 
+    ../Common/OneHot.h 
+    ../Common/OneHot.cpp 
+    ../Common/KullbackLieblerDivergenceLoss.h
+    ../Common/KullbackLieblerDivergenceLoss.cpp 
+    ../Common/HybridOptimizer.h
+)
 
 set(SOURCE 
-    IDataSet.h 
     CIFAR100.h 
     CIFAR100DataSet.h 
     CIFAR100DataSet.cpp 
-    ProgressBar.h 
-    FileSaver.h 
-    FileSaver.cpp 
     CIFAR100ClassNames.h 
-    ResidualBlock.h 
     CIFAR100CoarseModule.h 
     CIFAR100FineModule.h 
-    TrainSplitModels.h 
-    TrainSplitModels.cpp
-    TrainModelsMultiGPU.h 
-    TrainModelsMultiGPU.cpp 
-    ReduceLROnPlateauScheduler.h 
-    ReduceLROnPlateauScheduler.cpp
-    CosineAnnealingScheduler.h 
-    CosineAnnealingScheduler.cpp 
-    CutMixTransform.h 
-    BetaDistribution.h 
-    OneHot.h 
-    OneHot.cpp 
-    KullbackLieblerDivergenceLoss.h
-    KullbackLieblerDivergenceLoss.cpp 
-    HybridOptimizer.h
     main.cpp
 )
 add_executable(${PROJECT_NAME} 
   	${SOURCE}
+    ${COMMON}
 )
 
 
 if(USE_CUDNN)
-    target_include_directories(${PROJECT_NAME} PRIVATE ${CUDNN_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR})
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${COMMON} ${CUDNN_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR})
     target_link_libraries(${PROJECT_NAME} PRIVATE "${TORCH_LIBRARIES}" ${CUDNN_LIBRARY} PNG::PNG)
 else()
-    target_include_directories(${PROJECT_NAME} PRIVATE ${PNG_PNG_INCLUDE_DIR})
-
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${COMMON} ${PNG_PNG_INCLUDE_DIR})
     target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}" PNG::PNG)
 
 endif(USE_CUDNN)

@@ -6,7 +6,7 @@
 #include <memory>
 #include<inttypes.h>
 
-#include "ResidualBlock.h"
+#include "../Common/ResidualBlock.h"
 #include <vector>
 
 
