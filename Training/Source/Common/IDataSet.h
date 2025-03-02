@@ -7,14 +7,13 @@
 #include <vector>
 #include <string>
 
-#include "CIFAR100.h"
 #include "FileSaver.h"
 #include <memory>
 
 
 namespace torch_explorer
 {
-
+    template<typename DataType>
     class IDataSet
     {
     public:
@@ -54,7 +53,7 @@ namespace torch_explorer
         // Get the data loader for the dataset
         virtual auto getDataLoader() -> std::unique_ptr<torch::data::StatelessDataLoader<
             torch::data::datasets::MapDataset<
-            CIFAR100,
+            DataType,
             torch::data::transforms::Normalize<>
             >,
             torch::data::samplers::RandomSampler
