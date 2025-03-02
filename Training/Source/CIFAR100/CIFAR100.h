@@ -8,8 +8,8 @@
 #include <cstdint>
 #include <filesystem>
 
-#include "FileSaver.h"
-#include "ProgressBar.h"
+#include "../Common/FileSaver.h"
+#include "../Common/ProgressBar.h"
 #include "CIFAR100ClassNames.h"
 
 namespace torch_explorer

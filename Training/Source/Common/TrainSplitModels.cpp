@@ -8,6 +8,7 @@
 #include <memory>
 #include "OneHot.h"
 #include "KullbackLieblerDivergenceLoss.h"
+#include "CIFAR100.h"
 
 
 namespace torch_explorer
@@ -16,8 +17,8 @@ namespace torch_explorer
 
     void TrainSplitModels(std::shared_ptr<CIFAR100CoarseModule> coarse_model,
                          std::shared_ptr<CIFAR100FineModule> fine_model,
-                         std::shared_ptr<IDataSet> trainData,
-                         std::shared_ptr<IDataSet> testData,
+                         std::shared_ptr<IDataSet<CIFAR100>> trainData,
+                         std::shared_ptr<IDataSet<CIFAR100>> testData,
                          size_t num_epochs,
                          double coarse_lr,
                          double fine_lr,
