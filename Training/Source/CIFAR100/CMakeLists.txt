@@ -64,10 +64,7 @@ set(COMMON
     ../Common/FileSaver.h 
     ../Common/FileSaver.cpp 
     ../Common/ResidualBlock.h 
-    ../Common/TrainSplitModels.h 
-    ../Common/TrainSplitModels.cpp
-    ../Common/TrainModelsMultiGPU.h 
-    ../Common/TrainModelsMultiGPU.cpp 
+   
     ../Common/ReduceLROnPlateauScheduler.h 
     ../Common/ReduceLROnPlateauScheduler.cpp
     ../Common/CosineAnnealingScheduler.h 
@@ -84,10 +81,12 @@ set(COMMON
 set(SOURCE 
     CIFAR100.h 
     CIFAR100DataSet.h 
-    CIFAR100DataSet.cpp 
-    CIFAR100ClassNames.h 
     CIFAR100CoarseModule.h 
     CIFAR100FineModule.h 
+    TrainSplitModels.h 
+    TrainSplitModels.cpp
+    TrainModelsMultiGPU.h 
+    TrainModelsMultiGPU.cpp 
     main.cpp
 )
 add_executable(${PROJECT_NAME} 

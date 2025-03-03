@@ -90,6 +90,9 @@ set(COMMON
 set(SOURCE 
  
     COVID19DataSet.h 
+    COVID19Module.h
+    TrainCovid19Module.h 
+    TrainCovid19Module.cpp 
     main.cpp
 )
 
@@ -101,10 +104,10 @@ add_executable(${PROJECT_NAME}
 
 
 if(USE_CUDNN)
-    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${COMMON} ${CUDNN_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR})
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${OpenCV_INCLUDE_DIRS} ${COMMON} ${CUDNN_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR})
     target_link_libraries(${PROJECT_NAME} PRIVATE "${TORCH_LIBRARIES}" ${CUDNN_LIBRARY} PNG::PNG)
 else()
-    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${COMMON} ${PNG_PNG_INCLUDE_DIR})
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}  ${OpenCV_INCLUDE_DIRS} ${COMMON} ${PNG_PNG_INCLUDE_DIR})
     target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}" PNG::PNG)
 
 endif(USE_CUDNN)

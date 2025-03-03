@@ -2,7 +2,7 @@
 #define TRAIN_SPLIT_MODELS_
 
 #include <memory>
-#include "IDataSet.h"
+#include "../Common/IDataSet.h"
 #include "CIFAR100.h"
 
 

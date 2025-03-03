@@ -1,13 +1,13 @@
 #include "TrainSplitModels.h"
-#include "IDataSet.h"
+#include "../Common/IDataSet.h"
 #include <iomanip>
 #include "CIFAR100FineModule.h"
 #include "CIFAR100CoarseModule.h"
-#include "ReduceLROnPlateauScheduler.h"
-#include "CutMixTransform.h"
+#include "../Common/ReduceLROnPlateauScheduler.h"
+#include "../CutMixTransform.h"
 #include <memory>
-#include "OneHot.h"
-#include "KullbackLieblerDivergenceLoss.h"
+#include "../OneHot.h"
+#include "../KullbackLieblerDivergenceLoss.h"
 #include "CIFAR100.h"
 
 

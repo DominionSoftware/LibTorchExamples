@@ -7,12 +7,11 @@
 #include <iostream>
 #include <algorithm>
 #include <numeric>
-#include <opencv/opencv.hpp>
-
-#include "IDataSet.h"
-#include "FileSaver.h"
+#include "opencv2/opencv.hpp"
+#include "../Common/IDataSet.h"
+#include "../Common/FileSaver.h"
 #include <torch/torch.h>
-#include "CutMixTransform.h"
+#include "../Common/CutMixTransform.h"
 
 namespace torch_explorer
 {
