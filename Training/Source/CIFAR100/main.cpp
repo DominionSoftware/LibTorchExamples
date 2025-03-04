@@ -8,8 +8,8 @@
 #include "CIFAR100DataSet.h"
 #include "CIFAR100CoarseModule.h"
 #include "CIFAR100FineModule.h"
-#include "../Common/TrainModelsMultiGPU.h"
-#include "../Common/TrainSplitModels.h"
+#include "TrainModelsMultiGPU.h"
+#include "TrainSplitModels.h"
 
 
 int main(int ,const char * args[])

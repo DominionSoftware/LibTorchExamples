@@ -5,12 +5,12 @@
 #include "CIFAR100ClassNames.h"
 #include "CIFAR100CoarseModule.h"
 #include "CIFAR100FineModule.h"
-#include "CosineAnnealingScheduler.h"
-#include "IDataSet.h"
-#include "CutMixTransform.h"
-#include "OneHot.h"
-#include "KullbackLieblerDivergenceLoss.h"
-#include "HybridOptimizer.h"
+#include "../Common/CosineAnnealingScheduler.h"
+#include "../Common/IDataSet.h"
+#include "../Common/CutMixTransform.h"
+#include "../Common/OneHot.h"
+#include "../Common/KullbackLieblerDivergenceLoss.h"
+#include "../Common/HybridOptimizer.h"
 #include "CIFAR100.h"
 
 namespace torch_explorer

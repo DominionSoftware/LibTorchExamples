@@ -106,19 +106,28 @@ add_executable(${PROJECT_NAME}
 
 
 if(USE_CUDNN)
-    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${OpenCV_INCLUDE_DIRS} ${COMMON} ${TorchVision_INCLUDE_DIRS} ${CUDNN_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR})
-    target_link_libraries(${PROJECT_NAME} PRIVATE "${TORCH_LIBRARIES}" ${CUDNN_LIBRARY} ${TorchVision_LIBRARIES} PNG::PNG)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${OpenCV_INCLUDE_DIRS} ${COMMON} ${TorchVision_INCLUDE_DIR} ${CUDNN_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR})
+    target_link_libraries(${PROJECT_NAME} PRIVATE "${TORCH_LIBRARIES}" ${CUDNN_LIBRARY} ${TorchVision_LIBRARIES} ${OpenCV_LIBRARIES} PNG::PNG)
 else()
-    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}  ${OpenCV_INCLUDE_DIRS} ${COMMON} {TorchVision_INCLUDE_DIRS} ${PNG_PNG_INCLUDE_DIR})
-    target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}"  ${TorchVision_LIBRARIES} PNG::PNG)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}  ${OpenCV_INCLUDE_DIRS} ${COMMON} {TorchVision_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR})
+    target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}"  ${TorchVision_LIBRARIES} ${OpenCV_LIBRARIES} PNG::PNG)
 
 endif(USE_CUDNN)
 
 
 
 
-
 if(MSVC)
+    set(OpenCV_ROOT_DIR "D:/Projects/opencv.ins")
+    file(GLOB OPENCV_DLLS "${OpenCV_ROOT_DIR}/x64/vc17/bin/*.dll")
+
+    add_custom_command(TARGET ${PROJECT_NAME}
+                  POST_BUILD
+                  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                  ${OPENCV_DLLS}
+                  $<TARGET_FILE_DIR:${PROJECT_NAME}>)
+
+
     file(GLOB TORCH_DLLS "${LIBTORCHPATH}/lib/*.dll")
     add_custom_command(TARGET ${PROJECT_NAME}
                       POST_BUILD
@@ -149,14 +158,21 @@ if(MSVC)
                           "${PNG_DLL_DIR}/libpng16.dll"
                           $<TARGET_FILE_DIR:${PROJECT_NAME}>)
     endif()
+    add_custom_command(TARGET ${PROJECT_NAME}
+                       POST_BUILD
+                       COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                       "${CMAKE_SOURCE_DIR}/../PreTrainedModels/resnet18_model.pt"
+                       "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+                       COMMENT "Copying resnet18_model.pt to binary directory")
 
-   # add_custom_command(TARGET ${PROJECT_NAME}
-   #                   POST_BUILD
-   #                   COMMAND ${CMAKE_COMMAND} -E copy_if_different
-   #                   "${CMAKE_SOURCE_DIR}/cifar-100-binary.zip"
-   #                   "$<TARGET_FILE_DIR:${PROJECT_NAME}>/cifar-100-binary.zip"
-   #                   COMMAND ${CMAKE_COMMAND} -E tar xf
-   #                   "$<TARGET_FILE_DIR:${PROJECT_NAME}>/cifar-100-binary.zip"
-   #                   WORKING_DIRECTORY $<TARGET_FILE_DIR:${PROJECT_NAME}>
-    #                  COMMENT "Extracting CIFAR-100 dataset to binary directory")
+     add_custom_command(TARGET ${PROJECT_NAME}
+                      POST_BUILD
+                      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                      "${CMAKE_SOURCE_DIR}/COVID-19_Radiography_Dataset.zip"
+                      "$<TARGET_FILE_DIR:${PROJECT_NAME}>/COVID-19_Radiography_Dataset.zip"
+                      COMMAND ${CMAKE_COMMAND} -E tar xf
+                      "$<TARGET_FILE_DIR:${PROJECT_NAME}>/COVID-19_Radiography_Dataset.zip"
+                      WORKING_DIRECTORY $<TARGET_FILE_DIR:${PROJECT_NAME}>
+                      COMMENT "Extracting COVID-19_Radiography_Dataset dataset to binary directory")
+
 endif(MSVC)

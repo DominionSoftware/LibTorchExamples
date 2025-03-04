@@ -4,7 +4,7 @@
 #include <memory>
 #include <vector>
 #include "CIFAR100.h"
-#include "IDataSet.h"
+#include "../Common/IDataSet.h"
 
 namespace torch_explorer
 {
