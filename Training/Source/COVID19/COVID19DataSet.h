@@ -70,7 +70,7 @@ namespace torch_explorer
             }
             
             // Shuffle the data with a fixed seed for reproducibility
-            auto seed = 42;
+            unsigned int seed = 42;
             auto rng = std::default_random_engine{seed};
             std::vector<size_t> indices(all_image_paths.size());
             std::iota(indices.begin(), indices.end(), 0);
@@ -138,7 +138,7 @@ namespace torch_explorer
         std::map<std::string, int> class_to_idx_;
     };
 
-    class Covid19DataSet : public IDataSet
+    class Covid19DataSet : public IDataSet<Covid19>
     {
     public:
         Covid19DataSet() : is_train(true), options(32) {
@@ -167,7 +167,7 @@ namespace torch_explorer
         }
 
         torch::data::Example<> get(size_t index) override {
-            return dataset.get(index);
+            return dataset[index];
         }
 
         torch::optional<size_t> size() const override {

@@ -53,6 +53,8 @@ set(CAFFE2_USE_CUDNN ON CACHE BOOL "CAFFE2_USE_CUDNN")
 set(CMAKE_CUDA_ARCHITECTURES 86)
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler /permissive-")
 find_package(Torch REQUIRED)
+find_package(TorchVision REQUIRED)
+
 find_package(CUDA REQUIRED)
 find_package(PNG REQUIRED)
 find_package(OpenCV REQUIRED)
@@ -104,11 +106,11 @@ add_executable(${PROJECT_NAME}
 
 
 if(USE_CUDNN)
-    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${OpenCV_INCLUDE_DIRS} ${COMMON} ${CUDNN_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR})
-    target_link_libraries(${PROJECT_NAME} PRIVATE "${TORCH_LIBRARIES}" ${CUDNN_LIBRARY} PNG::PNG)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${OpenCV_INCLUDE_DIRS} ${COMMON} ${TorchVision_INCLUDE_DIRS} ${CUDNN_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR})
+    target_link_libraries(${PROJECT_NAME} PRIVATE "${TORCH_LIBRARIES}" ${CUDNN_LIBRARY} ${TorchVision_LIBRARIES} PNG::PNG)
 else()
-    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}  ${OpenCV_INCLUDE_DIRS} ${COMMON} ${PNG_PNG_INCLUDE_DIR})
-    target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}" PNG::PNG)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}  ${OpenCV_INCLUDE_DIRS} ${COMMON} {TorchVision_INCLUDE_DIRS} ${PNG_PNG_INCLUDE_DIR})
+    target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}"  ${TorchVision_LIBRARIES} PNG::PNG)
 
 endif(USE_CUDNN)
 

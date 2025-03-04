@@ -2,6 +2,7 @@
 #define COVID19_MODULE_
 
 #include <torch/torch.h>
+#include <torchvision.h>
 #include <vector>
 
 namespace torch_explorer
