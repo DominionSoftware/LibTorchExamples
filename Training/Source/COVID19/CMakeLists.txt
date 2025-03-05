@@ -75,18 +75,9 @@ set(COMMON
     ../Common/ProgressBar.h 
     ../Common/FileSaver.h 
     ../Common/FileSaver.cpp 
-    ../Common/ResidualBlock.h 
     ../Common/ReduceLROnPlateauScheduler.h 
     ../Common/ReduceLROnPlateauScheduler.cpp
-    ../Common/CosineAnnealingScheduler.h 
-    ../Common/CosineAnnealingScheduler.cpp 
-    ../Common/CutMixTransform.h 
-    ../Common/BetaDistribution.h 
-    ../Common/OneHot.h 
-    ../Common/OneHot.cpp 
-    ../Common/KullbackLieblerDivergenceLoss.h
-    ../Common/KullbackLieblerDivergenceLoss.cpp 
-    ../Common/HybridOptimizer.h
+    ../Common/Transforms.h 
 )
 
 set(SOURCE 
@@ -165,14 +156,48 @@ if(MSVC)
                        "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
                        COMMENT "Copying resnet18_model.pt to binary directory")
 
-     add_custom_command(TARGET ${PROJECT_NAME}
-                      POST_BUILD
-                      COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                      "${CMAKE_SOURCE_DIR}/COVID-19_Radiography_Dataset.zip"
-                      "$<TARGET_FILE_DIR:${PROJECT_NAME}>/COVID-19_Radiography_Dataset.zip"
-                      COMMAND ${CMAKE_COMMAND} -E tar xf
-                      "$<TARGET_FILE_DIR:${PROJECT_NAME}>/COVID-19_Radiography_Dataset.zip"
-                      WORKING_DIRECTORY $<TARGET_FILE_DIR:${PROJECT_NAME}>
-                      COMMENT "Extracting COVID-19_Radiography_Dataset dataset to binary directory")
+    file(WRITE "${CMAKE_BINARY_DIR}/check_and_extract.cmake" [[
+        # Check if the extracted directory already exists
+        if(NOT EXISTS "${EXTRACT_DIR}/COVID-19_Radiography_Dataset")
+            message(STATUS "Dataset needs to be extracted.")
+            
+            # Check if the zip file exists, if not copy it
+            if(NOT EXISTS "${ZIP_PATH}")
+                message(STATUS "Copying dataset ZIP file.")
+                execute_process(
+                    COMMAND ${CMAKE_COMMAND} -E copy "${SRC_ZIP}" "${ZIP_PATH}"
+                )
+            endif()
+            
+            # Extract the zip file
+            message(STATUS "Extracting dataset. This may take a while...")
+            execute_process(
+                COMMAND ${CMAKE_COMMAND} -E tar xf "${ZIP_PATH}"
+                WORKING_DIRECTORY "${EXTRACT_DIR}"
+            )
+            message(STATUS "Dataset extraction complete.")
+        else()
+            message(STATUS "Dataset already extracted. Skipping.")
+        endif()
+    ]])
+
+    add_custom_command(TARGET ${PROJECT_NAME}
+                  POST_BUILD
+                  COMMAND ${CMAKE_COMMAND}
+                          -DZIP_PATH="$<TARGET_FILE_DIR:${PROJECT_NAME}>/COVID-19_Radiography_Dataset.zip"
+                          -DSRC_ZIP="${CMAKE_SOURCE_DIR}/COVID-19_Radiography_Dataset.zip"
+                          -DEXTRACT_DIR="$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+                          -P "${CMAKE_BINARY_DIR}/check_and_extract.cmake"
+                  COMMENT "Processing COVID-19_Radiography_Dataset if needed")
+   
+   #add_custom_command(TARGET ${PROJECT_NAME}
+   #                   POST_BUILD
+   #                   COMMAND ${CMAKE_COMMAND} -E copy_if_different
+   #                   "${CMAKE_SOURCE_DIR}/COVID-19_Radiography_Dataset.zip"
+   #                   "$<TARGET_FILE_DIR:${PROJECT_NAME}>/COVID-19_Radiography_Dataset.zip"
+   #                   COMMAND ${CMAKE_COMMAND} -E tar xf
+   #                   "$<TARGET_FILE_DIR:${PROJECT_NAME}>/COVID-19_Radiography_Dataset.zip"
+   #                   WORKING_DIRECTORY $<TARGET_FILE_DIR:${PROJECT_NAME}>
+   #                   COMMENT "Extracting COVID-19_Radiography_Dataset dataset to binary directory")
 
 endif(MSVC)

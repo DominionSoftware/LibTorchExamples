@@ -11,11 +11,13 @@
 #include "../Common/IDataSet.h"
 #include "../Common/FileSaver.h"
 #include <torch/torch.h>
-#include "../Common/CutMixTransform.h"
+//#include "../Common/CutMixTransform.h"
 
 namespace torch_explorer
 {
-    // Custom dataset class for Covid19 Radiography dataset
+    class CutMixTransform;
+
+    // Custom dataset_ class for Covid19 Radiography dataset_
     class Covid19 : public torch::data::Dataset<Covid19>
     {
     public:
@@ -92,13 +94,15 @@ namespace torch_explorer
                 << (mode_ == Mode::kTrain ? "training" : "testing") << std::endl;
         }
 
-        torch::data::Example<> get(size_t index) override {
+        torch::data::Example<> get(size_t index) override
+        {
             std::string image_path = image_paths_[index];
             int label = labels_[index];
 
             // Load and preprocess the image using OpenCV
             cv::Mat image = cv::imread(image_path);
-            if (image.empty()) {
+            if (image.empty()) 
+            {
                 std::cerr << "Could not read image: " << image_path << std::endl;
                 // Return an empty tensor if image can't be read
                 return { torch::zeros({3, image_size_, image_size_}),
@@ -126,7 +130,8 @@ namespace torch_explorer
             return { tensor_image, torch::tensor(label, torch::kLong) };
         }
 
-        torch::optional<size_t> size() const override {
+        torch::optional<size_t> size() const override
+        {
             return image_paths_.size();
         }
 
@@ -141,35 +146,39 @@ namespace torch_explorer
     class Covid19DataSet : public IDataSet<Covid19>
     {
     public:
-        Covid19DataSet() : is_train(true), options(32) {
-            options.workers(2);
+        Covid19DataSet() : is_train_(true), options_(32)
+        {
+            options_.workers(2);
         }
 
-        explicit Covid19DataSet(bool is_training) : is_train(is_training), options(32) {
-            options.workers(2);
+        explicit Covid19DataSet(bool is_training) : is_train_(is_training), options_(32)
+        {
+            options_.workers(4);
         }
 
-        void load(const std::filesystem::path& root_path, std::shared_ptr<FileSaver> fileSaver = nullptr) override {
-            auto mode = is_train ? Covid19::Mode::kTrain : Covid19::Mode::kTest;
+        void load(const std::filesystem::path& root_path, std::shared_ptr<FileSaver> fileSaver = nullptr) override
+        {
+            auto mode = is_train_ ? Covid19::Mode::kTrain : Covid19::Mode::kTest;
 
-            // Load the dataset
-            raw_dataset = Covid19(root_path, mode);
+            // Load the dataset_
+            raw_dataset_ = Covid19(root_path, mode);
 
             // Define normalization transform
             auto normalize_transform = torch::data::transforms::Normalize<>({ 0.485, 0.456, 0.406 },
                 { 0.229, 0.224, 0.225 });
 
-            // Apply normalization to dataset
-            dataset = raw_dataset.map(normalize_transform);
+            // Apply normalization to dataset_
+            dataset_ = raw_dataset_.map(normalize_transform);
 
-            std::cout << "Covid19DataSet loaded with " << dataset.size().value()
-                << " samples for " << (is_train ? "training" : "testing") << std::endl;
+            std::cout << "Covid19DataSet loaded with " << dataset_.size().value()
+                << " samples for " << (is_train_ ? "training" : "testing") << std::endl;
         }
 
-        torch::data::Example<> get(size_t index) override {
-            // MapDataset doesn't have [] or get, so we need to access the underlying dataset
-            // Convert MapDataset back to the original dataset and apply the transform manually
-            auto example = raw_dataset.get(index);
+        torch::data::Example<> get(size_t index) override
+        {
+            // MapDataset doesn't have [] or get, so we need to access the underlying dataset_
+            // Convert MapDataset back to the original dataset_ and apply the transform manually
+            auto example = raw_dataset_.get(index);
 
             // Apply normalization transform manually
             torch::Tensor data = example.data;
@@ -178,35 +187,43 @@ namespace torch_explorer
             return { data, example.target };
         }
 
-        torch::optional<size_t> size() const override {
-            return dataset.size();
+        torch::optional<size_t> size() const override
+        {
+            return dataset_.size();
         }
 
-        size_t getBatchSize() const override {
-            return options.batch_size();
+        size_t getBatchSize() const override
+        {
+            return options_.batch_size();
         }
 
-        void setBatchSize(size_t batch_size) override {
-            options.batch_size(batch_size);
+        void setBatchSize(size_t batch_size) override
+        {
+            options_.batch_size(batch_size);
         }
 
-        size_t getNumWorkers() const override {
-            return options.workers();
+        size_t getNumWorkers() const override
+        {
+            return options_.workers();
         }
 
-        void setNumWorkers(size_t num_workers) override {
-            options.workers(num_workers);
+        void setNumWorkers(size_t num_workers) override
+        {
+            options_.workers(num_workers);
         }
 
-        bool isTraining() const override {
-            return is_train;
+        bool isTraining() const override
+        {
+            return is_train_;
         }
 
-        std::vector<int64_t> getInputShape() const override {
+        std::vector<int64_t> getInputShape() const override
+        {
             return { 3, 224, 224 };  // Covid19 images are resized to 224x224 RGB
         }
 
-        size_t getNumClasses() const override {
+        size_t getNumClasses() const override
+        {
             return 4;  // Normal, COVID, Lung_Opacity, Viral Pneumonia
         }
 
@@ -217,47 +234,35 @@ namespace torch_explorer
             // For compatibility with your CIFAR100DataSet
             using RandomSampler = torch::data::samplers::RandomSampler;
 
-            if (is_train) {
+            if (is_train_) 
+            {
                 // For training, use a random sampler
-                return std::make_unique<torch::data::StatelessDataLoader<decltype(dataset), RandomSampler>>(
-                    dataset, RandomSampler(dataset.size().value()), options);
+                return std::make_unique<torch::data::StatelessDataLoader<decltype(dataset_), RandomSampler>>(
+                    dataset_, RandomSampler(dataset_.size().value()), options_);
             }
-            else {
+            else 
+            {
                 // For testing, still using RandomSampler as required by interface, but with sequential behavior
-                return std::make_unique<torch::data::StatelessDataLoader<decltype(dataset), RandomSampler>>(
-                    dataset, RandomSampler(dataset.size().value()), options);
+                return std::make_unique<torch::data::StatelessDataLoader<decltype(dataset_), RandomSampler>>(
+                    dataset_, RandomSampler(dataset_.size().value()), options_);
             }
         }
 
-        void enableCutMix(float alpha = 1.0, float prob = 0.5) {
-            use_cutmix_ = true;
-            cutmix_ = CutMixTransform(alpha, prob);
-        }
+        
 
-        void disableCutMix() {
-            use_cutmix_ = false;
-        }
-
-        // Get CutMix transformer for use in training loop
-        CutMixTransform& getCutMixTransform() {
-            return cutmix_;
-        }
-
-        bool isCutMixEnabled() const {
-            return use_cutmix_;
-        }
-
+        
+ 
     private:
-        Covid19 raw_dataset;
-        torch::data::datasets::MapDataset<Covid19, torch::data::transforms::Normalize<>> dataset{
+        Covid19 raw_dataset_;
+        torch::data::datasets::MapDataset<Covid19, torch::data::transforms::Normalize<>> dataset_
+        {
             Covid19(),
             torch::data::transforms::Normalize<>({0.485, 0.456, 0.406}, {0.229, 0.224, 0.225})
         };
 
-        torch::data::DataLoaderOptions options;
-        bool is_train;
-        bool use_cutmix_ = false;
-        CutMixTransform cutmix_{ 1.0, 0.5 };
+        torch::data::DataLoaderOptions options_;
+        bool is_train_;
+
         std::mt19937 gen_{ std::random_device{}() };
     };
 }

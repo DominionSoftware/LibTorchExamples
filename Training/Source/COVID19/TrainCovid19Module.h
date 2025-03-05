@@ -15,8 +15,9 @@ namespace torch_explorer
         std::shared_ptr<IDataSet<Covid19>> trainData, 
         std::shared_ptr<IDataSet<Covid19>> testData,
         size_t num_epochs,
-        double learningRate = 0.001, 
-        size_t logInterval = 100);
+        double learningRate = 0.005, 
+        size_t logInterval = 100, 
+        bool useDataAugmentation = true);
 }
 
 #endif // TRAIN_COVID19_MODULE_

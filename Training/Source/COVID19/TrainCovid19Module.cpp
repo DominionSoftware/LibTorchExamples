@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <iostream>
 #include <torch/torch.h>
+#include "../Common/Transforms.h"
 
 // Helper function to print tensor statistics
 void printTensorStats(const torch::Tensor& tensor, const std::string& name)
@@ -34,7 +35,7 @@ namespace torch_explorer
         std::shared_ptr<IDataSet<Covid19>> testData,
         size_t num_epochs,
         double learningRate,
-        size_t logInterval)
+        size_t logInterval, bool useDataAugmentation)
     {
         try
         {
@@ -59,20 +60,29 @@ namespace torch_explorer
                 << "Number of epochs: " << num_epochs << std::endl
                 << "Image dimensions: [" << img_dims[0] << ", "
                 << img_dims[1] << ", " << img_dims[2] << "]" << std::endl
-                << "Number of classes: " << trainData->getNumClasses() << std::endl;
+                << "Number of classes: " << trainData->getNumClasses() << std::endl
+                << "Data augmentation: " << (useDataAugmentation ? "Enabled" : "Disabled") << std::endl;
 
-             model->to(device);
 
-             bool is_on_cuda = false;
-             for (const auto& p : model->parameters()) {
-                 if (p.device().is_cuda()) {
-                     is_on_cuda = true;
-                     break;
-                 }
-             }
-             std::cout << "Model is on GPU: " << (is_on_cuda ? "Yes" : "No") << std::endl;
+            torch_exporer::ComposeTransforms transforms({
+               [](torch::Tensor x) { return torch_exporer::RandomHorizontalFlip(0.5)(x); }
+                });
 
-             auto optimizer = torch::optim::Adam(model->parameters(), learningRate);
+            model->to(device);
+
+            bool is_on_cuda = false;
+            for (const auto& p : model->parameters())
+            {
+                if (p.device().is_cuda())
+                {
+                    is_on_cuda = true;
+                    break;
+                }
+            }
+            std::cout << "Model is on GPU: " << (is_on_cuda ? "Yes" : "No") << std::endl;
+
+            auto optimizer = torch::optim::Adam(model->parameters(), learningRate);
+
             ReduceLROnPlateauScheduler scheduler(optimizer);
 
             auto trainLoader = trainData->getDataLoader();
@@ -83,16 +93,16 @@ namespace torch_explorer
             {
                 printTensorStats(p, "Parameter");
                 std::cout << "  Device: " << p.device() << std::endl;
-
             }
 
             model->train();
+
             for (size_t epoch = 0; epoch < num_epochs; ++epoch)
             {
-                size_t batch_idx{ 0 };
-                float epoch_loss{ 0.0f };
-                size_t num_samples{ 0 };
-                size_t num_correct{ 0 };
+                size_t batch_idx{0};
+                float epoch_loss{0.0f};
+                size_t num_samples{0};
+                size_t num_correct{0};
 
                 std::cout << "\nStarting epoch " << epoch << std::endl;
 
@@ -101,15 +111,21 @@ namespace torch_explorer
                     std::vector<torch::Tensor> data_vec, target_vec;
                     for (const auto& example : batch)
                     {
-                        data_vec.push_back(example.data);
+
+                        auto data = example.data;
+                        if (useDataAugmentation) 
+                        {
+                            data = transforms(data);
+                        }
+
+                        data_vec.push_back(data);
+
                         target_vec.push_back(example.target);
                     }
 
                     auto data = stack(data_vec).to(device);
                     auto target = stack(target_vec).to(torch::kInt64).to(device);
-                    std::cout << "Data on CUDA: " << data.is_cuda() << std::endl;
-                    std::cout << "Target on CUDA: " << target.is_cuda() << std::endl;
-
+ 
                     if (batch_idx == 0)
                     {
                         printTensorStats(data, "Input batch");
@@ -118,34 +134,34 @@ namespace torch_explorer
 
                     optimizer.zero_grad();
                     torch::Tensor output;
-                    try {
+                    try
+                    {
                         output = model->forward(data);
 
-                        std::cout << "Output on CUDA: " << output.is_cuda() << ", device: " << output.device() << std::endl;
-
-                        if (batch_idx == 0) {
+                        if (batch_idx == 0)
+                        {
                             std::cout << "Output is a tensor: " << output.defined() << std::endl;
                             std::cout << "Output shape: " << output.sizes() << std::endl;
                             printTensorStats(output, "Model output");
                         }
                     }
-                    catch (const std::exception& e) {
-                        std::cerr << "Error in forward pass: " << e.what() << std::endl;
-                        continue; // Skip this batch if forward fails
+                    catch (const std::exception& e)
+                    {
+                        continue; // Skip this batch ?
                     }
 
                     torch::Tensor loss;
-                    try {
+                    try
+                    {
                         loss = torch::nn::functional::cross_entropy(output, target);
-                        std::cout << "Loss on CUDA: " << loss.is_cuda() << ", device: " << loss.device() << std::endl;
-
                     }
-                    catch (const std::exception& e) {
+                    catch (const std::exception& e)
+                    {
                         std::cerr << "Error in loss calculation: " << e.what() << std::endl;
-                        std::cerr << "Output shape: " << output.sizes() << ", Target shape: " << target.sizes() << std::endl;
+                        std::cerr << "Output shape: " << output.sizes() << ", Target shape: " << target.sizes() <<
+                            std::endl;
                         continue; // Skip this batch if loss calculation fails
                     }
-                    std::cout << "step 1" << std::endl;
                     if (loss.isnan().any().item<bool>())
                     {
                         std::cout << "WARNING: Loss is NaN!" << std::endl;
@@ -177,7 +193,8 @@ namespace torch_explorer
                                 if (p.grad().defined())
                                 {
                                     printTensorStats(p.grad(), "Gradient");
-                                    std::cout << "  Gradient on CUDA: " << p.grad().is_cuda() << ", device: " << p.grad().device() << std::endl;
+                                    std::cout << "  Gradient on CUDA: " << p.grad().is_cuda() << ", device: " << p.
+                                        grad().device() << std::endl;
                                 }
                             }
                         }
@@ -211,17 +228,17 @@ namespace torch_explorer
                         data_vec.push_back(example.data);
                         target_vec.push_back(example.target);
                     }
-                    std::cout << "step 1-1" << std::endl;
 
                     auto data = stack(data_vec).to(device);
                     auto target = stack(target_vec).to(torch::kInt64).to(device);
 
                     torch::Tensor output = model->forward(data);
 
-                    // Create options with reduction=sum
-                    auto cross_entropy_options = torch::nn::functional::CrossEntropyFuncOptions().reduction(torch::kSum);
+                    // Create options_ with reduction=sum
+                    auto cross_entropy_options = torch::nn::functional::CrossEntropyFuncOptions().
+                        reduction(torch::kSum);
 
-                    // Use options instead of positional arguments
+                    // Use options_ instead of positional arguments
                     test_loss += torch::nn::functional::cross_entropy(
                         output, target, cross_entropy_options).item<float>();
 
@@ -249,10 +266,9 @@ namespace torch_explorer
                 }
             }
 
-            
+
             torch::save(model, "covid19_model.pt");
             std::cout << "Model saved to covid19_model.pt" << std::endl;
-
         }
         catch (const std::exception& ex)
         {

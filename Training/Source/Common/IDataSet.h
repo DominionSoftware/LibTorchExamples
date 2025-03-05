@@ -20,16 +20,16 @@ namespace torch_explorer
         // Virtual destructor ensures proper cleanup of derived classes
         virtual ~IDataSet() = default;
 
-        // Load dataset from the specified directory
+        // Load dataset_ from the specified directory
         virtual void load(const std::filesystem::path& root_path, std::shared_ptr<FileSaver> fileSaver = nullptr) = 0;
 
         // Get a batch of data with specified indexes
         virtual torch::data::Example<> get(size_t index) = 0;
 
-        // Get the total size of the dataset
+        // Get the total size of the dataset_
         virtual torch::optional<size_t> size() const = 0;
 
-        // Get batch size configured for the dataset
+        // Get batch size configured for the dataset_
         virtual size_t getBatchSize() const = 0;
 
         // Set batch size for data loading
@@ -41,16 +41,16 @@ namespace torch_explorer
         // Set number of worker threads for data loading
         virtual void setNumWorkers(size_t num_workers) = 0;
 
-        // Check if the dataset is for training
+        // Check if the dataset_ is for training
         virtual bool isTraining() const = 0;
 
         // Get the image dimensions [channels, height, width]
         virtual std::vector<int64_t> getInputShape() const = 0;
 
-        // Get number of classes in the dataset
+        // Get number of classes in the dataset_
         virtual size_t getNumClasses() const = 0;
 
-        // Get the data loader for the dataset
+        // Get the data loader for the dataset_
         virtual auto getDataLoader() -> std::unique_ptr<torch::data::StatelessDataLoader<
             torch::data::datasets::MapDataset<
             DataType,
