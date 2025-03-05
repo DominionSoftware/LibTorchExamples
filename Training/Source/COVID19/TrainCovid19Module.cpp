@@ -65,7 +65,7 @@ namespace torch_explorer
 
 
             torch_exporer::ComposeTransforms transforms({
-               [](torch::Tensor x) { return torch_exporer::RandomHorizontalFlip(0.5)(x); }
+               [](torch::Tensor x) { return torch_exporer::RandomHorizontalFlip(0.1)(x); }
                 });
 
             model->to(device);
