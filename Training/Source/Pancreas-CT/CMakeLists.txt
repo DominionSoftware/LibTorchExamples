@@ -36,8 +36,9 @@ if(WIN32)
     set(OpenCV_DIR "${DRIVE_LETTER}Projects/opencv.ins")
 
     message(WARNING,${OpenCV_DIR})
- 
-
+    set(nlohmann_json_DIR "${DRIVE_LETTER}Projects/json.ins/share/cmake/nlohmann_json")
+    set(DCMTK_DIR D:/Projects/dcmtk.ins/cmake)
+    set(DCMTK_DLL_DIR D:/Projects/dcmtk.ins/bin)
 
 	
    
@@ -58,10 +59,16 @@ find_package(TorchVision REQUIRED)
 find_package(CUDA REQUIRED)
 find_package(PNG REQUIRED)
 find_package(OpenCV REQUIRED)
+ 
+find_package(nlohmann_json REQUIRED)
+
+
+
+
 if(NOT OpenCV_FOUND)
     message(FATAL_ERROR "OpenCV not found. Please specify OpenCV_DIR")
 endif()
-
+ 
 
 find_package(DCMTK REQUIRED)
 
@@ -96,6 +103,8 @@ set(COMMON
 set(SOURCE 
  
     PancreasCTDataSet.h 
+    PancreasCTDataSet.cpp
+
     PancreasCTModule.h
     TrainPancreasCTModule.h 
     TrainPancreasCTModule.cpp 
@@ -108,13 +117,46 @@ add_executable(${PROJECT_NAME}
     ${COMMON}
 )
 
+ 
+set(DCMTK_LIBS
+    DCMTK::ofstd
+    DCMTK::oflog
+    DCMTK::oficonv
+    DCMTK::dcmdata
+    DCMTK::i2d
+    DCMTK::dcmxml
+    DCMTK::dcmimgle
+    DCMTK::dcmimage
+    DCMTK::dcmjpeg
+    DCMTK::ijg8
+    DCMTK::ijg12
+    DCMTK::ijg16
+    DCMTK::dcmjpls
+    DCMTK::dcmtkcharls
+    DCMTK::dcmtls
+    DCMTK::dcmnet
+    DCMTK::dcmsr
+    DCMTK::cmr
+    DCMTK::dcmdsig
+    DCMTK::dcmwlm
+    DCMTK::dcmqrdb
+    DCMTK::dcmpstat
+    DCMTK::dcmrt
+    DCMTK::dcmiod
+    DCMTK::dcmfg
+    DCMTK::dcmseg
+    DCMTK::dcmtract
+    DCMTK::dcmpmap
+    DCMTK::dcmect
+
+)
 
 if(USE_CUDNN)
-    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${OpenCV_INCLUDE_DIRS} ${COMMON} ${TorchVision_INCLUDE_DIR} ${CUDNN_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR} ${DCMTK_INCLUDE_DIRS})
-    target_link_libraries(${PROJECT_NAME} PRIVATE "${TORCH_LIBRARIES}" ${CUDNN_LIBRARY} ${TorchVision_LIBRARIES} ${OpenCV_LIBRARIES} PNG::PNG ${DCMTK_LIBRARIES})
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${OpenCV_INCLUDE_DIRS} ${COMMON} ${TorchVision_INCLUDE_DIR} ${CUDNN_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR} ${DCMTK_INCLUDE_DIRS} ${nlohmann_json_INCLUDE_DIRS})
+    target_link_libraries(${PROJECT_NAME} PRIVATE "${TORCH_LIBRARIES}" ${CUDNN_LIBRARY} ${TorchVision_LIBRARIES} ${OpenCV_LIBRARIES} PNG::PNG ${DCMTK_LIBS} nlohmann_json::nlohmann_json)
 else()
-    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}  ${OpenCV_INCLUDE_DIRS} ${COMMON} {TorchVision_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR} ${DCMTK_INCLUDE_DIRS})
-    target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}"  ${TorchVision_LIBRARIES} ${OpenCV_LIBRARIES} PNG::PNG ${DCMTK_LIBRARIES})
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}  ${OpenCV_INCLUDE_DIRS} ${COMMON} {TorchVision_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR} ${DCMTK_INCLUDE_DIRS} ${nlohmann_json_INCLUDE_DIRS})
+    target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}"  ${TorchVision_LIBRARIES} ${OpenCV_LIBRARIES} PNG::PNG ${DCMTK_LIBS} nlohmann_json::nlohmann_json)
 
 endif(USE_CUDNN)
 
@@ -155,6 +197,14 @@ if(MSVC)
                           $<TARGET_FILE_DIR:${PROJECT_NAME}>)
     endif()
 
+    file(GLOB DCMTK_DLLS "${DCMTK_DLL_DIR}/*.dll")
+        add_custom_command(TARGET ${PROJECT_NAME}
+                          POST_BUILD
+                          COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                          ${DCMTK_DLLS}
+                          $<TARGET_FILE_DIR:${PROJECT_NAME}>)
+
+
      if(EXISTS "${PNG_DLL_DIR}/libpng16.dll")
         add_custom_command(TARGET ${PROJECT_NAME}
                           POST_BUILD
@@ -162,55 +212,13 @@ if(MSVC)
                           "${PNG_DLL_DIR}/libpng16.dll"
                           $<TARGET_FILE_DIR:${PROJECT_NAME}>)
     endif()
-    add_custom_command(TARGET ${PROJECT_NAME}
-                       POST_BUILD
-                       COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                       "${CMAKE_SOURCE_DIR}/../PreTrainedModels/resnet18_model.pt"
-                       "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
-                       COMMENT "Copying resnet18_model.pt to binary directory")
+  #  add_custom_command(TARGET ${PROJECT_NAME}
+  #                     POST_BUILD
+  #                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+  #                     "${CMAKE_SOURCE_DIR}/../PreTrainedModels/resnet18_model.pt"
+  #                     "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+  #                     COMMENT "Copying resnet18_model.pt to binary directory")
 
-    file(WRITE "${CMAKE_BINARY_DIR}/check_and_extract.cmake" [[
-        # Check if the extracted directory already exists
-        if(NOT EXISTS "${EXTRACT_DIR}/COVID-19_Radiography_Dataset")
-            message(STATUS "Dataset needs to be extracted.")
-            
-            # Check if the zip file exists, if not copy it
-            if(NOT EXISTS "${ZIP_PATH}")
-                message(STATUS "Copying dataset ZIP file.")
-                execute_process(
-                    COMMAND ${CMAKE_COMMAND} -E copy "${SRC_ZIP}" "${ZIP_PATH}"
-                )
-            endif()
-            
-            # Extract the zip file
-            message(STATUS "Extracting dataset. This may take a while...")
-            execute_process(
-                COMMAND ${CMAKE_COMMAND} -E tar xf "${ZIP_PATH}"
-                WORKING_DIRECTORY "${EXTRACT_DIR}"
-            )
-            message(STATUS "Dataset extraction complete.")
-        else()
-            message(STATUS "Dataset already extracted. Skipping.")
-        endif()
-    ]])
-
-    add_custom_command(TARGET ${PROJECT_NAME}
-                  POST_BUILD
-                  COMMAND ${CMAKE_COMMAND}
-                          -DZIP_PATH="$<TARGET_FILE_DIR:${PROJECT_NAME}>/COVID-19_Radiography_Dataset.zip"
-                          -DSRC_ZIP="${CMAKE_SOURCE_DIR}/COVID-19_Radiography_Dataset.zip"
-                          -DEXTRACT_DIR="$<TARGET_FILE_DIR:${PROJECT_NAME}>"
-                          -P "${CMAKE_BINARY_DIR}/check_and_extract.cmake"
-                  COMMENT "Processing COVID-19_Radiography_Dataset if needed")
    
-   #add_custom_command(TARGET ${PROJECT_NAME}
-   #                   POST_BUILD
-   #                   COMMAND ${CMAKE_COMMAND} -E copy_if_different
-   #                   "${CMAKE_SOURCE_DIR}/COVID-19_Radiography_Dataset.zip"
-   #                   "$<TARGET_FILE_DIR:${PROJECT_NAME}>/COVID-19_Radiography_Dataset.zip"
-   #                   COMMAND ${CMAKE_COMMAND} -E tar xf
-   #                   "$<TARGET_FILE_DIR:${PROJECT_NAME}>/COVID-19_Radiography_Dataset.zip"
-   #                   WORKING_DIRECTORY $<TARGET_FILE_DIR:${PROJECT_NAME}>
-   #                   COMMENT "Extracting COVID-19_Radiography_Dataset dataset to binary directory")
 
 endif(MSVC)
