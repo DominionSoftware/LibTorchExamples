@@ -3,8 +3,10 @@ cmake_minimum_required(VERSION 3.18)
 
 project(PANCREAS-CT LANGUAGES CXX CUDA)
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
+if(MSVC)
+    add_compile_options(/std:c++20 /Zc:__cplusplus)
+endif()
+
 
 if(WIN32)
 
@@ -98,6 +100,8 @@ set(COMMON
     ../Common/ReduceLROnPlateauScheduler.h 
     ../Common/ReduceLROnPlateauScheduler.cpp
     ../Common/Transforms.h 
+    ../Common/MonaiDataLoader.h 
+    ../Common/MonaiDataLoader.cpp 
 )
 
 set(SOURCE 
@@ -117,7 +121,7 @@ add_executable(${PROJECT_NAME}
     ${COMMON}
 )
 
- 
+
 set(DCMTK_LIBS
     DCMTK::ofstd
     DCMTK::oflog
