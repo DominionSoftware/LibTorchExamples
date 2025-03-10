@@ -231,8 +231,7 @@ namespace torch_explorer
             Covid19,
             torch::data::transforms::Normalize<>>,
             torch::data::samplers::RandomSampler>> override {
-            // For compatibility with your CIFAR100DataSet
-            using RandomSampler = torch::data::samplers::RandomSampler;
+             using RandomSampler = torch::data::samplers::RandomSampler;
 
             if (is_train_) 
             {
