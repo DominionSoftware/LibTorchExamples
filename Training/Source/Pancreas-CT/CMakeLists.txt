@@ -216,13 +216,19 @@ if(MSVC)
                           "${PNG_DLL_DIR}/libpng16.dll"
                           $<TARGET_FILE_DIR:${PROJECT_NAME}>)
     endif()
-  #  add_custom_command(TARGET ${PROJECT_NAME}
-  #                     POST_BUILD
-  #                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-  #                     "${CMAKE_SOURCE_DIR}/../PreTrainedModels/resnet18_model.pt"
-  #                     "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
-  #                     COMMENT "Copying resnet18_model.pt to binary directory")
 
-   
+
+set(DEST_DIR "$<TARGET_FILE_DIR:${PROJECT_NAME}>/pathology_nuclei_segmentation_classification")
+
+if(NOT EXISTS ${DEST_DIR})
+
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/../PreTrainedModels/pathology_nuclei_segmentation_classification"
+        DESTINATION "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+        OPTIONAL) 
+
+ else()
+    message(STATUS "pathology_nuclei_segmentation_classification models installed")
+ endif()
+
 
 endif(MSVC)
