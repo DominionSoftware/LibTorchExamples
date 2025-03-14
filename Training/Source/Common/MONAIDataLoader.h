@@ -2,68 +2,84 @@
 #ifndef MONAI_DATALOADER_
 #define MONAI_DATALOADER_
 
-#include <filesystem>
 #include <string>
 #include <vector>
-#include <torch/torch.h>
-#include <torch/script.h>
+#include <filesystem>
+#include <fstream>
+#include <iostream>
 #include <nlohmann/json.hpp>
+#include <torch/script.h>
+#include <torch/torch.h>
 
 namespace torch_explorer {
 
+class MonaiDataLoader {
+public:
+    // Structures to hold configuration parameters
     struct PreprocessingParams {
-        float a_min = -87.0f;    // Default values from the pancreas CT model
-        float a_max = 199.0f;
+        float a_min = 0.0f;
+        float a_max = 0.0f;
         float b_min = 0.0f;
         float b_max = 1.0f;
         bool clip = true;
     };
 
-    struct ModelParams {
-        int inputChannels = 1;
-        int outputClasses = 3;
-        std::vector<int> patchSize = { 96, 96, 96 };
-        std::vector<float> inputRange = { 0.0f, 1.0f };
-        float overlapRatio = 0.625f;
+    struct ModelParameters {
+        std::vector<int> patchSize = { 96, 96, 96 };  // Default patch size
+        float overlapRatio = 0.5f;                    // Default overlap ratio
+        int inputChannels = 1;                        // Default input channels
+        int outputClasses = 3;                        // Default output classes (background, pancreas, tumor)
+        std::array<float, 2> inputRange = { 0.0f, 1.0f }; // Default input range
+        int swBatchSize = 4;                          // Default sliding window batch size
+        std::string paddingMode = "constant";         // Default padding mode
+        float paddingValue = 0.0f;                    // Default padding value
+        bool showProgress = true;                     // Default progress indicator
+        std::vector<int> extraPadding = { 0, 0, 0 };  // Default extra padding
     };
 
-    class MonaiDataLoader {
-    public:
-        MonaiDataLoader(const std::filesystem::path& bundlePath, bool trainMode = false);
+    // Constructor
+    MonaiDataLoader(const std::filesystem::path& bundlePath, bool trainMode = false);
 
-        // Model loading
-        torch::jit::Module loadBaseModel();
+    // Main functionality methods
+    torch::jit::Module loadBaseModel();
+    std::vector<torch::Tensor> loadDicomStudy(const std::string& folderPath);
+    torch::Tensor extractFeatures(torch::jit::Module& model, torch::Tensor& volume);
+    torch::nn::Sequential createClassifier(int numFeatures, int numClasses);
+    void saveClassifier(const torch::nn::Sequential& classifier, const std::string& path);
+    torch::nn::Sequential loadClassifier(const std::string& path, int numFeatures, int numClasses);
 
-        // DICOM handling
-        std::vector<torch::Tensor> loadDicomStudy(const std::string& folderPath);
-        torch::Tensor loadDicomVolume(const std::vector<std::string>& dicomFiles);
-        void sortDicomFilesByPosition(std::vector<std::string>& dicomFiles);
+    // Configuration and metadata methods
+    void loadMetadata();
+    void loadPreprocessingConfig();
+    
+    // Configuration parsing helper methods
+    template<typename T>
+    T resolveReference(const nlohmann::json& config, const std::string& refName);
+    
+    float evaluateExpression(const nlohmann::json& config, const std::string& expr);
+    
+    template<typename T>
+    T getValue(const nlohmann::json& config, const nlohmann::json& value);
+    
+    // Getters for configuration parameters
+    const ModelParameters& getModelParams() const { return modelParams_; }
+    const PreprocessingParams& getPreprocessingParams() const { return preprocessing_; }
 
-        // Feature extraction for transfer learning
-        torch::Tensor extractFeatures(torch::jit::Module& model, torch::Tensor& volume);
-        std::vector<torch::Tensor> extractPatches(const torch::Tensor& volume, const std::vector<int>& patchSize);
+private:
+    // DICOM processing methods
+    void sortDicomFilesByPosition(std::vector<std::string>& dicomFiles);
+    torch::Tensor loadDicomVolume(const std::vector<std::string>& dicomFiles);
+    torch::Tensor preprocessVolume(torch::Tensor volume);
+    torch::Tensor applyIntensityScaling(const torch::Tensor& tensor);
+    std::vector<torch::Tensor> extractPatches(const torch::Tensor& volume, const std::vector<int>& patchSize);
 
-        // Classifier handling for transfer learning
-        torch::nn::Sequential createClassifier(int numFeatures, int numClasses);
-        void saveClassifier(const torch::nn::Sequential& classifier, const std::string& path);
-        torch::nn::Sequential loadClassifier(const std::string& path, int numFeatures, int numClasses);
-
-        // Preprocessing
-        torch::Tensor preprocessVolume(torch::Tensor volume);
-        torch::Tensor applyIntensityScaling(const torch::Tensor& tensor);
-
-    private:
-        // Configuration loading
-        void loadMetadata();
-        void loadPreprocessingConfig();
-
-        // Member variables
-        std::filesystem::path bundlePath_;
-        bool trainMode_;
-        nlohmann::json metadata_;
-        PreprocessingParams preprocessing_;
-        ModelParams modelParams_;
-    };
+    // Member variables
+    std::filesystem::path bundlePath_;
+    bool trainMode_;
+    nlohmann::json metadata_;
+    PreprocessingParams preprocessing_;
+    ModelParameters modelParams_;
+};
 
 }
 

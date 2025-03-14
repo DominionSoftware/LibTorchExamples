@@ -73,6 +73,100 @@ void MonaiDataLoader::loadMetadata()
     }
 }
 
+// Helper function to resolve variable references (e.g., @patch_size)
+template<typename T>
+T MonaiDataLoader::resolveReference(const nlohmann::json& config, const std::string& refName) {
+    // Remove the @ prefix
+    std::string varName = refName.substr(1);
+    
+    // Check if the variable exists in the config
+    if (config.contains(varName)) {
+        return config[varName].get<T>();
+    }
+    
+    // If not found, throw an exception or return a default value
+    std::cerr << "Warning: Reference not found: " << refName << ", using default value." << std::endl;
+    if constexpr (std::is_same_v<T, int>) return 0;
+    else if constexpr (std::is_same_v<T, float>) return 0.0f;
+    else if constexpr (std::is_same_v<T, std::string>) return "";
+    else return T{};
+}
+
+// Function to evaluate simple expressions
+float MonaiDataLoader::evaluateExpression(const nlohmann::json& config, const std::string& expr) {
+    // Remove the $ prefix
+    std::string expression = expr.substr(1);
+    
+    // Special case: "1.0 - float(@out_size) / float(@patch_size)"
+    std::regex outSizeDivPatchSize(R"(1\.0\s*-\s*float\(@out_size\)\s*/\s*float\(@patch_size\))");
+    if (std::regex_match(expression, outSizeDivPatchSize)) {
+        int outSize = resolveReference<int>(config, "@out_size");
+        int patchSize = resolveReference<int>(config, "@patch_size");
+        return 1.0f - static_cast<float>(outSize) / static_cast<float>(patchSize);
+    }
+    
+    // Handle integer division with // (Python-style)
+    std::regex intDivision(R"(\(\(@([a-zA-Z0-9_]+)\s*-\s*@([a-zA-Z0-9_]+)\)\s*\/\/\s*(\d+)\))");
+    std::smatch match;
+    if (std::regex_search(expression, match, intDivision)) {
+        std::string var1 = "@" + match[1].str();
+        std::string var2 = "@" + match[2].str();
+        int divisor = std::stoi(match[3].str());
+        
+        int val1 = resolveReference<int>(config, var1);
+        int val2 = resolveReference<int>(config, var2);
+        
+        return static_cast<float>((val1 - val2) / divisor);
+    }
+    
+    // For complex expressions like "((@patch_size - @out_size) // 2,) * 4"
+    // Extract just the numbers and do a basic calculation
+    if (expression.find("@patch_size") != std::string::npos && 
+        expression.find("@out_size") != std::string::npos) {
+        int patchSize = resolveReference<int>(config, "@patch_size");
+        int outSize = resolveReference<int>(config, "@out_size");
+        
+        // For the specific expression "((@patch_size - @out_size) // 2,) * 4"
+        if (expression.find("// 2") != std::string::npos && expression.find("* 4") != std::string::npos) {
+            return ((patchSize - outSize) / 2);  // The * 4 is handled separately
+        }
+    }
+    
+    // Default case if we can't parse
+    std::cerr << "Warning: Unable to evaluate expression: " << expr << ", using 0.0" << std::endl;
+    return 0.0f;
+}
+
+// Function to get a value, resolving references and expressions
+template<typename T>
+T MonaiDataLoader::getValue(const nlohmann::json& config, const nlohmann::json& value) {
+    // Check if it's a string that might be a reference or expression
+    if (value.is_string()) {
+        std::string strValue = value.get<std::string>();
+        
+        // Handle variable references (@variable)
+        if (strValue.size() > 1 && strValue[0] == '@') {
+            return resolveReference<T>(config, strValue);
+        }
+        // Handle expressions ($expression)
+        else if (strValue.size() > 1 && strValue[0] == '$') {
+            if constexpr (std::is_floating_point_v<T> || std::is_same_v<T, float>) {
+                return evaluateExpression(config, strValue);
+            } 
+            else if constexpr (std::is_integral_v<T> || std::is_same_v<T, int>) {
+                return static_cast<T>(evaluateExpression(config, strValue));
+            }
+            else {
+                std::cerr << "Warning: Expression evaluation to this type not supported, using default" << std::endl;
+                return T{};
+            }
+        }
+    }
+    
+    // Direct conversion for non-string or non-reference values
+    return value.get<T>();
+}
+
 void MonaiDataLoader::loadPreprocessingConfig()
 {
     std::vector<std::filesystem::path> configPaths =
@@ -99,11 +193,11 @@ void MonaiDataLoader::loadPreprocessingConfig()
                         if (transform.contains("_target_") &&
                             transform["_target_"].get<std::string>().find("ScaleIntensityRanged") != std::string::npos) {
 
-                            preprocessing_.a_min = transform.value("a_min", -87.0f);
-                            preprocessing_.a_max = transform.value("a_max", 199.0f);
-                            preprocessing_.b_min = transform.value("b_min", 0.0f);
-                            preprocessing_.b_max = transform.value("b_max", 1.0f);
-                            preprocessing_.clip = transform.value("clip", true);
+                            preprocessing_.a_min = getValue<float>(config, transform.value("a_min", -87.0f));
+                            preprocessing_.a_max = getValue<float>(config, transform.value("a_max", 199.0f));
+                            preprocessing_.b_min = getValue<float>(config, transform.value("b_min", 0.0f));
+                            preprocessing_.b_max = getValue<float>(config, transform.value("b_max", 1.0f));
+                            preprocessing_.clip = getValue<bool>(config, transform.value("clip", true));
 
                             std::cout << "Found intensity scaling parameters: " << preprocessing_.a_min << " to "
                                 << preprocessing_.a_max << " -> " << preprocessing_.b_min << " to "
@@ -113,21 +207,106 @@ void MonaiDataLoader::loadPreprocessingConfig()
                     }
                 }
 
-                // Look for inference parameters
+                // Look for inference parameters using the enhanced parser
                 if (config.contains("inferer")) {
                     auto& inferer = config["inferer"];
 
-                    if (inferer.contains("roi_size") && inferer["roi_size"].is_array()) {
-                        auto& roiSize = inferer["roi_size"];
-                        if (roiSize.size() >= 3) {
-                            modelParams_.patchSize[0] = roiSize[0].get<int>();
-                            modelParams_.patchSize[1] = roiSize[1].get<int>();
-                            modelParams_.patchSize[2] = roiSize[2].get<int>();
+                    // Parse roi_size with enhanced handling for references
+                    if (inferer.contains("roi_size")) {
+                        // If roi_size is a direct array
+                        if (inferer["roi_size"].is_array()) {
+                            auto& roiSize = inferer["roi_size"];
+                            if (roiSize.size() >= 3) {
+                                modelParams_.patchSize[0] = getValue<int>(config, roiSize[0]);
+                                modelParams_.patchSize[1] = getValue<int>(config, roiSize[1]);
+                                modelParams_.patchSize[2] = getValue<int>(config, roiSize[2]);
+                            }
+                        }
+                        // If roi_size is a reference (e.g., "@patch_size")
+                        else if (inferer["roi_size"].is_string()) {
+                            std::string roiSizeRef = inferer["roi_size"].get<std::string>();
+                            
+                            if (roiSizeRef.size() > 1 && roiSizeRef[0] == '@') {
+                                // Resolve the reference
+                                if (config.contains(roiSizeRef.substr(1))) {
+                                    auto& resolvedValue = config[roiSizeRef.substr(1)];
+                                    
+                                    // Handle the resolved value based on its type
+                                    if (resolvedValue.is_array() && resolvedValue.size() >= 3) {
+                                        modelParams_.patchSize[0] = resolvedValue[0].get<int>();
+                                        modelParams_.patchSize[1] = resolvedValue[1].get<int>();
+                                        modelParams_.patchSize[2] = resolvedValue[2].get<int>();
+                                    }
+                                    else if (resolvedValue.is_number()) {
+                                        // If it's a single number, use it for all dimensions
+                                        int size = resolvedValue.get<int>();
+                                        modelParams_.patchSize[0] = size;
+                                        modelParams_.patchSize[1] = size;
+                                        modelParams_.patchSize[2] = size;
+                                    }
+                                }
+                            }
                         }
                     }
 
+                    // Parse overlap with enhanced handling for expressions
                     if (inferer.contains("overlap")) {
-                        modelParams_.overlapRatio = inferer["overlap"].get<float>();
+                        // Direct value
+                        if (inferer["overlap"].is_number()) {
+                            modelParams_.overlapRatio = inferer["overlap"].get<float>();
+                        }
+                        // Reference or expression
+                        else if (inferer["overlap"].is_string()) {
+                            std::string overlapValue = inferer["overlap"].get<std::string>();
+                            
+                            // Handle reference (@variable)
+                            if (overlapValue.size() > 1 && overlapValue[0] == '@') {
+                                if (config.contains(overlapValue.substr(1))) {
+                                    modelParams_.overlapRatio = config[overlapValue.substr(1)].get<float>();
+                                }
+                            }
+                            // Handle expression ($expression)
+                            else if (overlapValue.size() > 1 && overlapValue[0] == '$') {
+                                modelParams_.overlapRatio = evaluateExpression(config, overlapValue);
+                            }
+                        }
+                    }
+
+                    // Parse sw_batch_size
+                    if (inferer.contains("sw_batch_size")) {
+                        modelParams_.swBatchSize = getValue<int>(config, inferer["sw_batch_size"]);
+                    }
+                    
+                    // Parse padding_mode
+                    if (inferer.contains("padding_mode")) {
+                        modelParams_.paddingMode = getValue<std::string>(config, inferer["padding_mode"]);
+                    }
+                    
+                    // Parse padding value (cval)
+                    if (inferer.contains("cval")) {
+                        modelParams_.paddingValue = getValue<float>(config, inferer["cval"]);
+                    }
+                    
+                    // Parse progress indicator
+                    if (inferer.contains("progress")) {
+                        modelParams_.showProgress = getValue<bool>(config, inferer["progress"]);
+                    }
+                    
+                    // Handle extra_input_padding (complex case)
+                    if (inferer.contains("extra_input_padding")) {
+                        std::string paddingExpr = inferer["extra_input_padding"].get<std::string>();
+                        if (paddingExpr.size() > 1 && paddingExpr[0] == '$') {
+                            float paddingValue = evaluateExpression(config, paddingExpr);
+                            
+                            // Check if it's multiplied by 4 (for all dimensions)
+                            if (paddingExpr.find("* 4") != std::string::npos) {
+                                modelParams_.extraPadding[0] = static_cast<int>(paddingValue);
+                                modelParams_.extraPadding[1] = static_cast<int>(paddingValue);
+                                modelParams_.extraPadding[2] = static_cast<int>(paddingValue);
+                            } else {
+                                modelParams_.extraPadding[0] = static_cast<int>(paddingValue);
+                            }
+                        }
                     }
                 }
 
@@ -150,13 +329,24 @@ void MonaiDataLoader::loadPreprocessingConfig()
         preprocessing_.b_max = 1.0f;
         preprocessing_.clip = true;
     }
+    
+    // Print the parsed parameters for verification
+    std::cout << "Configuration parameters:" << std::endl;
+    std::cout << "  Patch Size: [" << modelParams_.patchSize[0] << ", " 
+              << modelParams_.patchSize[1] << ", " << modelParams_.patchSize[2] << "]" << std::endl;
+    std::cout << "  Overlap Ratio: " << modelParams_.overlapRatio << std::endl;
+    std::cout << "  SW Batch Size: " << modelParams_.swBatchSize << std::endl;
+    std::cout << "  Padding Mode: " << modelParams_.paddingMode << std::endl;
+    std::cout << "  Padding Value: " << modelParams_.paddingValue << std::endl;
+    std::cout << "  Show Progress: " << (modelParams_.showProgress ? "true" : "false") << std::endl;
+    std::cout << "  Extra Padding: [" << modelParams_.extraPadding[0] << ", " 
+              << modelParams_.extraPadding[1] << ", " << modelParams_.extraPadding[2] << "]" << std::endl;
 }
 
 torch::jit::Module MonaiDataLoader::loadBaseModel()
 {
-    // Look for model files in the actual locations based on your folder structure
     std::vector<std::filesystem::path> modelPaths = {
-        bundlePath_ / "models" / "model_pancreas_ct_dints_segmentation.pt",
+       // bundlePath_ / "models" / "model_pancreas_ct_dints_segmentation.pt", // we want the torch script model.
         bundlePath_ / "models" / "model_pancreas_ct_dints_segmentation.ts"
     };
 
@@ -167,7 +357,7 @@ torch::jit::Module MonaiDataLoader::loadBaseModel()
             try {
                 std::cout << "Loading DiNTS base model from: " << path.string() << std::endl;
                 torch::jit::Module module = torch::jit::load(path.string());
-                module.eval();  // Set to evaluation mode
+                trainMode_ ? module.train() : module.eval();
                 return module;
             }
             catch (const c10::Error& e) {
