@@ -218,17 +218,17 @@ if(MSVC)
     endif()
 
 
-set(DEST_DIR "$<TARGET_FILE_DIR:${PROJECT_NAME}>/pathology_nuclei_segmentation_classification")
+#set(DEST_DIR "$<TARGET_FILE_DIR:${PROJECT_NAME}>/pathology_nuclei_segmentation_classification")
 
-if(NOT EXISTS ${DEST_DIR})
+#if(NOT EXISTS ${DEST_DIR})
 
-    install(DIRECTORY "${CMAKE_SOURCE_DIR}/../PreTrainedModels/pathology_nuclei_segmentation_classification"
-        DESTINATION "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
-        OPTIONAL) 
+ #   install(DIRECTORY "${CMAKE_SOURCE_DIR}/../PreTrainedModels/pathology_nuclei_segmentation_classification"
+ #       DESTINATION "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+  #      OPTIONAL) 
 
- else()
-    message(STATUS "pathology_nuclei_segmentation_classification models installed")
- endif()
+# else()
+#    message(STATUS "pathology_nuclei_segmentation_classification models installed")
+# endif()
 
 
 endif(MSVC)
