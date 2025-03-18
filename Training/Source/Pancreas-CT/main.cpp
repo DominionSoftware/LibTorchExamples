@@ -21,13 +21,20 @@ int main(int argc,const char* argv[])
 
 		};
 
+	auto data_folder = []()->const std::filesystem::path
+		{
+			return std::filesystem::path("D:/Projects/Pancreas-CT/manifest-1599750808610/Pancreas-CT/PANCREAS_0001/11-24-2015-PANCREAS0001-Pancreas-18957/Pancreas-99667") / "";
+		};
 
 	auto model_data = model_data_folder();
 
-	std::shared_ptr< MonaiDataLoader> loaderTrain = std::make_shared<MonaiDataLoader>(model_data, true);
+	std::shared_ptr< MonaiDataLoader> loaderSegment = std::make_shared<MonaiDataLoader>(model_data, false);
 
 
-	loaderTrain->loadBaseModel();
+	loaderSegment->loadBaseModel();
+	auto data_path = data_folder();
+
+	loaderSegment->loadDicomStudy(data_path);
 
 
 

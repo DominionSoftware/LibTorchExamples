@@ -4,6 +4,8 @@
 #include <torch/torch.h>
 #include <dcmtk/dcmdata/dctk.h>
 #include <dcmtk/dcmimgle/dcmimage.h>
+#include <dcmtk/dcmdata/dcdatset.h>
+#include "Vector3D.h"
 
 
 using namespace torch_explorer;
@@ -370,19 +372,19 @@ torch::jit::Module MonaiDataLoader::loadBaseModel()
     throw std::runtime_error("Could not find a valid model file in the bundle");
 }
 
-std::vector<torch::Tensor> MonaiDataLoader::loadDicomStudy(const std::string& folderPath)
+std::vector<torch::Tensor> MonaiDataLoader::loadDicomStudy(const std::filesystem::path& folderPath)
 {
     std::vector<torch::Tensor> volumes;
 
     // Check if this is a directory containing DICOM files
     if (!std::filesystem::is_directory(folderPath)) {
-        throw std::runtime_error("Expected a directory containing DICOM files: " + folderPath);
+        throw std::runtime_error("Expected a directory containing DICOM files: " + folderPath.string());
     }
 
     // Collect all DICOM files
     std::vector<std::string> dicomFiles;
     for (const auto& entry : std::filesystem::directory_iterator(folderPath)) {
-        if (entry.is_regular_file() && entry.path().extension() == ".dcm") {
+        if (entry.is_regular_file()) {
             DcmFileFormat fileFormat;
             if (fileFormat.loadFile(entry.path().string().c_str()).good()) {
                 dicomFiles.push_back(entry.path().string());
@@ -391,7 +393,7 @@ std::vector<torch::Tensor> MonaiDataLoader::loadDicomStudy(const std::string& fo
     }
 
     if (dicomFiles.empty()) {
-        throw std::runtime_error("No valid DICOM files found in: " + folderPath);
+        throw std::runtime_error("No valid DICOM files found in: " + folderPath.string());
     }
 
     // Sort files by position
@@ -409,7 +411,76 @@ std::vector<torch::Tensor> MonaiDataLoader::loadDicomStudy(const std::string& fo
 
 void MonaiDataLoader::sortDicomFilesByPosition(std::vector<std::string>& dicomFiles)
 {
-    
+    for (auto& f : dicomFiles)
+    {
+        DcmFileFormat fileFormat;
+        if (!fileFormat.loadFile(f.c_str()).good())
+        {
+            throw std::runtime_error("Unable to load DICOM file. " + f);
+        }
+        DcmElement* ele;
+        DcmDataset* dataSet = fileFormat.getDataset();
+        if (fileFormat.getDataset()->findAndGetElement(DCM_ImagePositionPatient, ele).good())
+        {
+            OFVector<Float64> imagePositionPatient;
+            DcmDecimalString* dcmDs = dynamic_cast<DcmDecimalString*>(ele);
+            if (dcmDs != nullptr)
+            {
+                if (dcmDs->getFloat64Vector(imagePositionPatient).good())
+                {
+                    for (size_t i = 0; i < imagePositionPatient.size(); i++)
+                    {
+                        std::cout << imagePositionPatient[i] << std::endl;
+                    }
+                }
+            }
+
+            if(dataSet->findAndGetElement(DCM_ImageOrientationPatient, ele).good())
+            {
+                DcmDecimalString* dcmDs = dynamic_cast<DcmDecimalString*>(ele);
+                if (dcmDs != nullptr)
+                {
+                    OFVector<Float64> imageOrientationPatient;
+                    if (dcmDs->getFloat64Vector(imageOrientationPatient).good())
+                    {
+                        for (size_t i = 0; i < imageOrientationPatient.size(); i++)
+                        {
+                            std::cout << imageOrientationPatient[i] << std::endl;
+
+                        }
+                    }
+
+                    Vector3D<double> xVector;
+                    if (imageOrientationPatient.size() == 6)
+                    {
+                        xVector[0] = imageOrientationPatient[0];
+                        xVector[1] = imageOrientationPatient[1];
+                        xVector[2] = imageOrientationPatient[2];
+
+                        Vector3D<double> yVector;
+
+                        yVector[0] = imageOrientationPatient[3];
+                        yVector[1] = imageOrientationPatient[4];
+                        yVector[2] = imageOrientationPatient[5];
+
+                        Vector3D<double> zVector = Vector3D<double>::cross3D(xVector, yVector);
+                        std::cout << zVector << std::endl;
+                    }
+                    else
+                    {
+
+                    }
+                }
+            }
+ 
+
+
+        }
+        else
+        {
+            throw std::runtime_error("Unable to load DICOM file. " + f);
+        }
+    }
             
 }
 
@@ -657,34 +728,6 @@ std::vector<torch::Tensor> MonaiDataLoader::extractPatches(const torch::Tensor& 
     return patches;
 }
 
-// Create a classifier model for transfer learning
-torch::nn::Sequential MonaiDataLoader::createClassifier(int numFeatures, int numClasses)
-{
-    torch::nn::Sequential classifier(
-        torch::nn::Linear(numFeatures, 256),
-        torch::nn::ReLU(),
-        torch::nn::Dropout(0.5),
-        torch::nn::Linear(256, 64),
-        torch::nn::ReLU(),
-        torch::nn::Dropout(0.3),
-        torch::nn::Linear(64, numClasses)
-    );
 
-    return classifier;
-}
 
-// Save the trained classifier
-void MonaiDataLoader::saveClassifier(const torch::nn::Sequential& classifier, const std::string& path)
-{
-    torch::save(classifier, path);
-    std::cout << "Saved classifier to: " << path << std::endl;
-}
 
-// Load a previously trained classifier
-torch::nn::Sequential MonaiDataLoader::loadClassifier(const std::string& path, int numFeatures, int numClasses)
-{
-    auto classifier = createClassifier(numFeatures, numClasses);
-    torch::load(classifier, path);
-    std::cout << "Loaded classifier from: " << path << std::endl;
-    return classifier;
-}

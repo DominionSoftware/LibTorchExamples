@@ -42,11 +42,10 @@ public:
 
     // Main functionality methods
     torch::jit::Module loadBaseModel();
-    std::vector<torch::Tensor> loadDicomStudy(const std::string& folderPath);
+
+    std::vector<torch::Tensor> loadDicomStudy(const std::filesystem::path& folderPath);
+
     torch::Tensor extractFeatures(torch::jit::Module& model, torch::Tensor& volume);
-    torch::nn::Sequential createClassifier(int numFeatures, int numClasses);
-    void saveClassifier(const torch::nn::Sequential& classifier, const std::string& path);
-    torch::nn::Sequential loadClassifier(const std::string& path, int numFeatures, int numClasses);
 
     // Configuration and metadata methods
     void loadMetadata();
