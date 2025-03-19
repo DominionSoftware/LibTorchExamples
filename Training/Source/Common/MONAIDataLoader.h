@@ -11,6 +11,8 @@
 #include <torch/script.h>
 #include <torch/torch.h>
 
+#include "Vector3D.h"
+
 namespace torch_explorer {
 
 class MonaiDataLoader {
@@ -37,21 +39,21 @@ public:
         std::vector<int> extraPadding = { 0, 0, 0 };  // Default extra padding
     };
 
-    // Constructor
-    MonaiDataLoader(const std::filesystem::path& bundlePath, bool trainMode = false);
+     MonaiDataLoader(const std::filesystem::path& bundlePath, bool trainMode = false);
 
-    // Main functionality methods
-    torch::jit::Module loadBaseModel();
+     torch::jit::Module loadBaseModel();
 
     std::vector<torch::Tensor> loadDicomStudy(const std::filesystem::path& folderPath);
 
+    std::tuple<Vector3D<double>, Vector3D<double>, Vector3D<double>> getImageOrientation(const std::string& file);
+
     torch::Tensor extractFeatures(torch::jit::Module& model, torch::Tensor& volume);
 
-    // Configuration and metadata methods
+
     void loadMetadata();
     void loadPreprocessingConfig();
     
-    // Configuration parsing helper methods
+
     template<typename T>
     T resolveReference(const nlohmann::json& config, const std::string& refName);
     
@@ -59,20 +61,18 @@ public:
     
     template<typename T>
     T getValue(const nlohmann::json& config, const nlohmann::json& value);
-    
-    // Getters for configuration parameters
+
     const ModelParameters& getModelParams() const { return modelParams_; }
     const PreprocessingParams& getPreprocessingParams() const { return preprocessing_; }
 
 private:
-    // DICOM processing methods
-    void sortDicomFilesByPosition(std::vector<std::string>& dicomFiles);
+
+    void sortDicomFilesByPosition(const std::vector<std::string>& dicomFiles);
     torch::Tensor loadDicomVolume(const std::vector<std::string>& dicomFiles);
     torch::Tensor preprocessVolume(torch::Tensor volume);
     torch::Tensor applyIntensityScaling(const torch::Tensor& tensor);
     std::vector<torch::Tensor> extractPatches(const torch::Tensor& volume, const std::vector<int>& patchSize);
 
-    // Member variables
     std::filesystem::path bundlePath_;
     bool trainMode_;
     nlohmann::json metadata_;

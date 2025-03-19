@@ -1,6 +1,10 @@
 #include "MONAIDataLoader.h"
 
 #include <regex>
+#include <tuple>
+#include <tuple>
+#include <tuple>
+#include <tuple>
 #include <torch/torch.h>
 #include <dcmtk/dcmdata/dctk.h>
 #include <dcmtk/dcmimgle/dcmimage.h>
@@ -463,8 +467,68 @@ std::vector<torch::Tensor> MonaiDataLoader::loadDicomStudy(const std::filesystem
     return volumes;
 }
 
-void MonaiDataLoader::sortDicomFilesByPosition(std::vector<std::string>& dicomFiles)
+
+std::tuple<Vector3D<double>,Vector3D<double>, Vector3D<double>> MonaiDataLoader::getImageOrientation(const std::string& file)
 {
+    OFVector<Float64> imageOrientationPatient;
+
+
+    DcmFileFormat fileFormat;
+    if (!fileFormat.loadFile(file.c_str()).good())
+    {
+        throw std::runtime_error("Unable to load DICOM file. " + file);
+    }
+
+    DcmElement* ele;
+
+    DcmDataset* dataSet = fileFormat.getDataset();
+    if (!dataSet->findAndGetElement(DCM_ImageOrientationPatient, ele).good())
+    {
+        throw std::runtime_error("Image Orientation Patient not valid.");
+    }
+
+    DcmDecimalString* dcmDs = dynamic_cast<DcmDecimalString*>(ele);
+    if (dcmDs == nullptr)
+    {
+        throw std::runtime_error("Image Orientation Patient not valid.");
+
+    }
+
+    if (dcmDs->getFloat64Vector(imageOrientationPatient).good() && imageOrientationPatient.size() != 6)
+    {
+        throw std::runtime_error("Image Orientation Patient not valid.");
+    }
+
+        
+
+    Vector3D<double> xVector;
+
+    xVector[0] = imageOrientationPatient[0];
+    xVector[1] = imageOrientationPatient[1];
+    xVector[2] = imageOrientationPatient[2];
+
+    Vector3D<double> yVector;
+
+    yVector[0] = imageOrientationPatient[3];
+    yVector[1] = imageOrientationPatient[4];
+    yVector[2] = imageOrientationPatient[5];
+
+    Vector3D<double> zVector = Vector3D<double>::cross3D(xVector, yVector);
+    std::cout << xVector << std::endl;
+    std::cout << yVector << std::endl;
+    std::cout << zVector << std::endl;
+
+    return std::make_tuple(xVector, yVector, zVector);
+  
+}
+
+
+void MonaiDataLoader::sortDicomFilesByPosition(const std::vector<std::string>& dicomFiles)
+{
+    // Get orientation
+    auto imageOrientation = getImageOrientation(dicomFiles[0]);
+
+
     for (auto& f : dicomFiles)
     {
         DcmFileFormat fileFormat;
@@ -482,52 +546,11 @@ void MonaiDataLoader::sortDicomFilesByPosition(std::vector<std::string>& dicomFi
             {
                 if (dcmDs->getFloat64Vector(imagePositionPatient).good())
                 {
-                    for (size_t i = 0; i < imagePositionPatient.size(); i++)
-                    {
-                        std::cout << imagePositionPatient[i] << std::endl;
-                    }
+                    
+                    std::cout << imagePositionPatient[0] <<"," << imagePositionPatient[1] << "," << imagePositionPatient[2] << std::endl;
+                    
                 }
             }
-
-            if(dataSet->findAndGetElement(DCM_ImageOrientationPatient, ele).good())
-            {
-                DcmDecimalString* dcmDs = dynamic_cast<DcmDecimalString*>(ele);
-                if (dcmDs != nullptr)
-                {
-                    OFVector<Float64> imageOrientationPatient;
-                    if (dcmDs->getFloat64Vector(imageOrientationPatient).good())
-                    {
-                        for (size_t i = 0; i < imageOrientationPatient.size(); i++)
-                        {
-                            std::cout << imageOrientationPatient[i] << std::endl;
-
-                        }
-                    }
-
-                    Vector3D<double> xVector;
-                    if (imageOrientationPatient.size() == 6)
-                    {
-                        xVector[0] = imageOrientationPatient[0];
-                        xVector[1] = imageOrientationPatient[1];
-                        xVector[2] = imageOrientationPatient[2];
-
-                        Vector3D<double> yVector;
-
-                        yVector[0] = imageOrientationPatient[3];
-                        yVector[1] = imageOrientationPatient[4];
-                        yVector[2] = imageOrientationPatient[5];
-
-                        Vector3D<double> zVector = Vector3D<double>::cross3D(xVector, yVector);
-                        std::cout << zVector << std::endl;
-                    }
-                    else
-                    {
-
-                    }
-                }
-            }
- 
-
 
         }
         else
