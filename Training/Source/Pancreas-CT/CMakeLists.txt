@@ -100,6 +100,10 @@ set(COMMON
     ../Common/ReduceLROnPlateauScheduler.h 
     ../Common/ReduceLROnPlateauScheduler.cpp
     ../Common/Transforms.h 
+    ../Common/DicomLoader.h 
+    ../Common/DicomLoader.cpp 
+    ../Common/JSONLoader.h 
+    ../Common/JSONLoader.cpp 
     ../Common/MonaiDataLoader.h 
     ../Common/MonaiDataLoader.cpp 
 )
