@@ -23,11 +23,12 @@ int main(int argc,const char* argv[])
 
 	auto data_folder = []()->const std::filesystem::path
 		{
-			//return std::filesystem::path("D:/Projects/Pancreas-CT/manifest-1599750808610/Pancreas-CT/PANCREAS_0001/11-24-2015-PANCREAS0001-Pancreas-18957/Pancreas-99667") / "";
-			return std::filesystem::path("D:/Projects/Images/BackToFront.dcm") / "";
+			return std::filesystem::path("D:/Projects/Pancreas-CT/manifest-1599750808610/Pancreas-CT/PANCREAS_0001/11-24-2015-PANCREAS0001-Pancreas-18957/Pancreas-99667") / "";
 
 		};
 
+
+#ifdef TESTDATA
 	auto test_folder = []()->const std::vector<std::filesystem::path>
 		{
 
@@ -48,22 +49,29 @@ int main(int argc,const char* argv[])
  
 		};
 
-
+#endif
 
 	auto model_data = model_data_folder();
 
-	std::shared_ptr< MonaiDataLoader> loaderSegment = std::make_shared<MonaiDataLoader>(model_data, false);
+	std::shared_ptr<MonaiDataLoader> loaderSegment = std::make_shared<MonaiDataLoader>(model_data, false);
 
 
-	loaderSegment->loadBaseModel();
+
 	auto data_path = data_folder();
+
+#ifdef TESTDATA
 	auto test_folders = test_folder();
 
 	for (auto& p : test_folders)
 	{
-		loaderSegment->loadDicomStudy(p);
+		auto t = loaderSegment->loadDicomStudy(p);
 	}
+#endif
 
+	auto t = loaderSegment->loadDicomStudy(data_path);
+
+
+	torch::Tensor segmentation_result = loaderSegment->inference(t);
     return EXIT_SUCCESS;
 
 }

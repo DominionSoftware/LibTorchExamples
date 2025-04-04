@@ -46,7 +46,7 @@ namespace torch_explorer {
         torch::jit::Module loadBaseModel();
 
         // Load a DICOM study and preprocess it for the model
-        std::vector<torch::Tensor> loadDicomStudy(const std::filesystem::path& folderPath);
+        torch::Tensor loadDicomStudy(const std::filesystem::path& folderPath);
 
         // Extract features from a volume using the model
         torch::Tensor extractFeatures(torch::jit::Module& model, torch::Tensor& volume);
@@ -55,13 +55,18 @@ namespace torch_explorer {
         void loadMetadata();
         void loadPreprocessingConfig();
 
+        
+        torch::Tensor inference(torch::Tensor& volume);
+
+
         // Getter methods for model parameters
         const ModelParameters& getModelParams() const { return modelParams_; }
         const PreprocessingParams& getPreprocessingParams() const { return preprocessing_; }
 
     private:
         // Preprocessing methods
-        torch::Tensor preprocessVolume(torch::Tensor volume);
+        torch::Tensor preprocessVolume(const torch::Tensor& volume);
+        torch::Tensor slidingWindowInference(torch::Tensor& volume, torch::jit::Module& model);
         torch::Tensor applyIntensityScaling(const torch::Tensor& tensor);
         std::vector<torch::Tensor> extractPatches(const torch::Tensor& volume, const std::vector<int>& patchSize);
 

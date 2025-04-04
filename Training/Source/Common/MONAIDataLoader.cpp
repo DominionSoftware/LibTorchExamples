@@ -252,30 +252,72 @@ torch::jit::Module MonaiDataLoader::loadBaseModel()
     throw std::runtime_error("Could not find a valid model file in the bundle");
 }
 
-std::vector<torch::Tensor> MonaiDataLoader::loadDicomStudy(const std::filesystem::path& folderPath)
+torch::Tensor MonaiDataLoader::loadDicomStudy(const std::filesystem::path& folderPath)
 {
-    std::vector<torch::Tensor> volumes;
+
 
     // Use DicomLoader to load the volume
     torch::Tensor volume = dicomLoader_.loadDicomStudy(folderPath);
 
     // Apply preprocessing for the DiNTS model
     volume = preprocessVolume(volume);
-
-    volumes.push_back(volume);
-    return volumes;
-}
-
-torch::Tensor MonaiDataLoader::preprocessVolume(torch::Tensor volume)
-{
-    // Apply intensity scaling according to MONAI preprocessing parameters
-    volume = applyIntensityScaling(volume);
-
-    // Ensure the volume has the correct data type
-    volume = volume.to(torch::kFloat32);
-
+ 
     return volume;
 }
+
+torch::Tensor MonaiDataLoader::preprocessVolume(const torch::Tensor& volume)
+{
+    // Apply intensity scaling according to MONAI preprocessing parameters
+    torch::Tensor scaled = applyIntensityScaling(volume);
+
+    // Ensure the volume has the correct data type
+    torch::Tensor result = scaled.to(torch::kFloat32);
+
+    return result;
+}
+
+
+torch::Tensor MonaiDataLoader::inference(torch::Tensor& volume)
+{
+    torch::NoGradGuard noGrad;
+
+    torch::Device device(torch::kCPU);
+    if (torch::cuda::is_available())
+    {
+        device = torch::Device(torch::kCUDA);
+    }
+
+
+    torch::jit::Module model = loadBaseModel();
+    model.to(device);
+    model.eval();
+    torch::Tensor vol = volume.to(device);
+    torch::Tensor segmentation = slidingWindowInference(volume, model);
+
+    return segmentation;
+}
+
+
+torch::Tensor MonaiDataLoader::slidingWindowInference(torch::Tensor& volume,torch::jit::Module& model)
+{
+
+    auto volumeSize = volume.sizes().vec();
+    int batchSize = volumeSize[0];
+    int channels = volumeSize[1];
+    int depth = volumeSize[2];
+    int height = volumeSize[3];
+    int width = volumeSize[4];
+
+
+    std::cout << batchSize << std::endl;
+    std::cout << channels << std::endl;
+    std::cout << depth << std::endl;
+    std::cout << height << std::endl;
+    std::cout << width << std::endl;
+
+    return torch::Tensor();
+}
+
 
 torch::Tensor MonaiDataLoader::applyIntensityScaling(const torch::Tensor& tensor)
 {

@@ -43,6 +43,7 @@ namespace torch_explorer
         std::string getDicomMetadata(const std::string& filePath, const DcmTagKey& tagKey);
 
     private:
+        std::string getPatientOrientation(double x, double y, double z);
         /**
          * @brief Sorts DICOM files by position.
          *
