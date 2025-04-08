@@ -50,14 +50,18 @@ namespace torch_explorer {
 
         // Extract features from a volume using the model
         torch::Tensor extractFeatures(torch::jit::Module& model, torch::Tensor& volume);
-
+        torch::Tensor stitchPatches(const std::vector<torch::Tensor>& patches, const std::vector<std::array<int, 3>>& positions, const std::array<int, 3>& volumeSize);
         // Configuration loading methods
         void loadMetadata();
         void loadPreprocessingConfig();
 
         
         torch::Tensor inference(torch::Tensor& volume);
-
+        torch::Tensor extractLabel(torch::Tensor& segmentation, int labelClass);
+        torch::Tensor postProcessMask(torch::Tensor& segmentation);
+        std::vector<int> computeBoundingBox(const torch::Tensor& mask);
+        std::map<std::string, float> computeVolumeStats(const torch::Tensor& mask);
+        void saveSegmentation(const torch::Tensor& segmentation, const std::filesystem::path& outputPath);
 
         // Getter methods for model parameters
         const ModelParameters& getModelParams() const { return modelParams_; }
@@ -69,6 +73,7 @@ namespace torch_explorer {
         torch::Tensor slidingWindowInference(torch::Tensor& volume, torch::jit::Module& model);
         torch::Tensor applyIntensityScaling(const torch::Tensor& tensor);
         std::vector<torch::Tensor> extractPatches(const torch::Tensor& volume, const std::vector<int>& patchSize);
+ 
 
         // Parse model parameters from configuration
         void parseModelParameters(nlohmann::json& config);

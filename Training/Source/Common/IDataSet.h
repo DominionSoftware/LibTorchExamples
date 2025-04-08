@@ -60,7 +60,7 @@ namespace torch_explorer
             >> = 0;
 
 
-        IDataSet() {}
+        IDataSet() = default;
 
         IDataSet(const IDataSet&) = delete;
         IDataSet(IDataSet&&) = delete;

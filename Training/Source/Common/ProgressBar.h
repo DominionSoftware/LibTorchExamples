@@ -1,5 +1,6 @@
 #ifndef PROGRESS_BAR_
 #define PROGRESS_BAR_
+#include <iostream>
 
 
 namespace torch_explorer

@@ -67,7 +67,7 @@ namespace torch_explorer {
 
             // For the specific expression "((@patch_size - @out_size) // 2,) * 4"
             if (expression.find("// 2") != std::string::npos && expression.find("* 4") != std::string::npos) {
-                return ((patchSize - outSize) / 2); // The * 4 is handled separately
+                return ((patchSize - outSize) / 2.0); // The * 4 is handled separately
             }
         }
 

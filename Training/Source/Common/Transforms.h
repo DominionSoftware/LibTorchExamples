@@ -1,6 +1,6 @@
 #ifndef TRANSFORMS_
 #define TRANSFORMS_
-
+#include <random>
 
 
 namespace torch_exporer
