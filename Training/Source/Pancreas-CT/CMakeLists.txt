@@ -26,7 +26,7 @@ if(WIN32)
 
     set(LIBTORCHPATH D:/Projects/libtorch.cu.12.6)
 	set(CMAKE_PREFIX_PATH D:/Projects/libtorch.cu.12.6)
-
+    set(TorchVision_DIR "D:/Projects/vision.ins/share/cmake/TorchVision")
  
 	set(Torch_DIR ${LIBTORCHPATH}/share/cmake/Torch/)
 	set(CUDA_TOOLKIT_ROOT_DIR "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6")
@@ -41,6 +41,24 @@ if(WIN32)
     set(nlohmann_json_DIR "${DRIVE_LETTER}Projects/json.ins/share/cmake/nlohmann_json")
     set(DCMTK_DIR D:/Projects/dcmtk.ins/cmake)
     set(DCMTK_DLL_DIR D:/Projects/dcmtk.ins/bin)
+    set(ITK_DIR "D:/Projects/itk540.ins/lib/cmake/ITK-5.4")
+
+    set(VTK_DIR "D:/Projects/vtk941.ins/lib/cmake/vtk-9.4")
+ 
+    find_package(VTK 9.4 COMPONENTS 
+                  CommonColor
+                  CommonCore
+                  IOImage
+                  FiltersSources
+                  InteractionStyle
+                  InteractionWidgets
+                  RenderingContextOpenGL2
+                  RenderingCore
+                  RenderingFreeType
+                  RenderingGL2PSOpenGL2
+                  RenderingOpenGL2
+                ) 
+
 
 	
    
@@ -64,7 +82,25 @@ find_package(OpenCV REQUIRED)
  
 find_package(nlohmann_json REQUIRED)
 
+set(ITK_COMPONENTS
+  ITKCommon
+  ITKImageIO
+  ITKIOImageBase
+  ITKIOBMP       # For BMP format
+  ITKIOJPEG      # For JPEG format
+  ITKIOPNG       # For PNG format
+  ITKIOTIFF      # For TIFF format
+  ITKIONIFTI     # For NIFTI format
+  ITKIONRRD      # For NRRD format
+  ITKIOVTK       # For VTK integration
+  ITKIOTransformBase
+  ITKImageGrid
+)
 
+
+find_package(ITK REQUIRED COMPONENTS ${ITK_COMPONENTS})
+
+find_package(VTK REQUIRED)
 
 
 if(NOT OpenCV_FOUND)
@@ -86,6 +122,11 @@ endif()
 set(Eigen3_DIR "D:/Projects/eigen.ins/share/eigen3/cmake")
 find_package(Eigen3 REQUIRED)
 
+
+
+ 
+ 
+include(${ITK_USE_FILE})
 
 
 
@@ -166,10 +207,10 @@ set(DCMTK_LIBS
 
 if(USE_CUDNN)
     target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${OpenCV_INCLUDE_DIRS} ${COMMON} ${TorchVision_INCLUDE_DIR} ${CUDNN_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR} ${DCMTK_INCLUDE_DIRS} ${nlohmann_json_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
-    target_link_libraries(${PROJECT_NAME} PRIVATE "${TORCH_LIBRARIES}" ${CUDNN_LIBRARY} ${TorchVision_LIBRARIES} ${OpenCV_LIBRARIES} PNG::PNG ${DCMTK_LIBS} nlohmann_json::nlohmann_json)
+    target_link_libraries(${PROJECT_NAME} PRIVATE "${TORCH_LIBRARIES}" ${CUDNN_LIBRARY} ${TorchVision_LIBRARIES} ${OpenCV_LIBRARIES} PNG::PNG ${DCMTK_LIBS} nlohmann_json::nlohmann_json ${VTK_LIBRARIES} ${ITK_LIBRARIES})
 else()
     target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}  ${OpenCV_INCLUDE_DIRS} ${COMMON} {TorchVision_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR} ${DCMTK_INCLUDE_DIRS} ${nlohmann_json_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
-    target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}"  ${TorchVision_LIBRARIES} ${OpenCV_LIBRARIES} PNG::PNG ${DCMTK_LIBS} nlohmann_json::nlohmann_json)
+    target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}"  ${TorchVision_LIBRARIES} ${OpenCV_LIBRARIES} PNG::PNG ${DCMTK_LIBS} nlohmann_json::nlohmann_json ${VTK_LIBRARIES} ${ITK_LIBRARIES})
 
 endif(USE_CUDNN)
 

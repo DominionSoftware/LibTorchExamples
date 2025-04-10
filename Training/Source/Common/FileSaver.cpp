@@ -6,6 +6,12 @@
 #include <torch/torch.h>
 #include <vector>
 
+#include <itkImage.h>
+#include <itkImageFileWriter.h>
+#include <itkImageRegionIterator.h>
+#include <itkNrrdImageIO.h>       
+
+
 using namespace torch_explorer;
 
 
@@ -88,4 +94,128 @@ bool FileSaver::saveAsPNG(const torch::Tensor& tensor,const std::filesystem::pat
 	return true;
 
 }
- 
+
+bool FileSaver::saveAsNRRD(const torch::Tensor& tensor, const std::filesystem::path& subDirs, const std::string& filename)
+{
+    // Ensure tensor is on CPU and convert to contiguous memory layout
+    auto cpu_tensor = tensor.to(torch::kCPU).contiguous();
+
+    // Get tensor dimensions
+    auto sizes = cpu_tensor.sizes().vec();
+
+    // Check if this is a volume (expecting 5D tensor: batch, channel, depth, height, width)
+    if (sizes.size() != 5) {
+        std::cerr << "Expected 5D tensor (batch, channel, depth, height, width) but got "
+            << sizes.size() << "D tensor" << std::endl;
+        return false;
+    }
+
+    int batch = sizes[0];
+    int channels = sizes[1];
+    int depth = sizes[2];
+    int height = sizes[3];
+    int width = sizes[4];
+
+    // For simplicity, we'll only save the first batch and channel
+    if (batch > 1 || channels > 1) {
+        std::cout << "Warning: Only saving first batch and channel of the tensor" << std::endl;
+    }
+
+    // Create local path
+    std::filesystem::path localPath = path_ / subDirs;
+
+    if (!std::filesystem::exists(localPath)) {
+        std::error_code ec;
+        const bool ok = std::filesystem::create_directories(localPath, ec);
+        if (!ok) {
+            std::cerr << "Error creating directories: " << ec.message() << " (" << ec.value() << ")\n";
+            return false;
+        }
+    }
+
+    localPath = localPath / "";
+    localPath.replace_filename(filename);
+
+    // If filename doesn't end with .nrrd, add it
+    if (localPath.extension() != ".nrrd") {
+        localPath += ".nrrd";
+    }
+
+    // Set up the ITK image
+    using PixelType = float;
+    const unsigned int Dimension = 3;
+    using ImageType = itk::Image<PixelType, Dimension>;
+
+    ImageType::Pointer image = ImageType::New();
+
+    // Set image size
+    ImageType::SizeType size;
+    size[0] = width;
+    size[1] = height;
+    size[2] = depth;
+
+    // Set image region
+    ImageType::RegionType region;
+    region.SetSize(size);
+
+    // Set image spacing (default to 1.0 if not available)
+    ImageType::SpacingType spacing;
+    spacing.Fill(1.0);
+
+    // Set image origin (default to 0.0 if not available)
+    ImageType::PointType origin;
+    origin.Fill(0.0);
+
+    // Set image direction (default to identity if not available)
+    ImageType::DirectionType direction;
+    direction.SetIdentity();
+
+    // Apply all the settings to the image
+    image->SetRegions(region);
+    image->SetSpacing(spacing);
+    image->SetOrigin(origin);
+    image->SetDirection(direction);
+    image->Allocate();
+
+    // Access the first batch and channel of the tensor
+    auto tensor_slice = cpu_tensor[0][0];
+    auto tensor_data = tensor_slice.data_ptr<float>();
+
+    // Copy data from tensor to ITK image
+    itk::ImageRegionIterator<ImageType> imageIterator(image, image->GetLargestPossibleRegion());
+
+    for (int z = 0; z < depth; ++z) {
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                // Calculate index in the flat tensor array
+                size_t tensorIndex = (z * height * width) + (y * width) + x;
+
+                // Set ITK image pixel
+                ImageType::IndexType pixelIndex;
+                pixelIndex[0] = x;
+                pixelIndex[1] = y;
+                pixelIndex[2] = z;
+
+                image->SetPixel(pixelIndex, tensor_data[tensorIndex]);
+            }
+        }
+    }
+
+    // Set up the writer
+    using WriterType = itk::ImageFileWriter<ImageType>;
+    WriterType::Pointer writer = WriterType::New();
+
+    writer->SetFileName(localPath.string());
+    writer->SetInput(image);
+
+    try {
+        writer->Update();
+    }
+    catch (itk::ExceptionObject& error) {
+        std::cerr << "Error: " << error << std::endl;
+        return false;
+    }
+
+    std::cout << "Successfully saved NRRD file to: " << localPath.string() << std::endl;
+    return true;
+}

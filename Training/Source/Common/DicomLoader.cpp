@@ -53,7 +53,7 @@ namespace torch_explorer
         {
             volume = applyAffineTransform(volume,directionCosinesMatrix_);
         }
-        return loadDicomVolume(sortedFiles);
+        return volume;
     }
 #pragma optimize("",off)
 
@@ -424,6 +424,7 @@ namespace torch_explorer
         {
             DcmFileFormat fileFormat;
             OFCondition status = fileFormat.loadFile(filePath.c_str());
+            std::cout << filePath << std::endl;
 
             if (status.good())
             {
@@ -444,6 +445,8 @@ namespace torch_explorer
                     if (pixelMatrix)
                     {
                         auto data = const_cast<void*>(pixelMatrix->getData());
+                        size_t count = pixelMatrix->getCount();
+                        std::cout << count << std::endl;
                         if (data)
                         {
                             // Get technical parameters
@@ -455,24 +458,34 @@ namespace torch_explorer
                                 // For image data, convert to Hounsfield Units if CT
                                 double rescaleIntercept = 0.0;
                                 double rescaleSlope = 1.0;
-                                fileFormat.getDataset()->findAndGetFloat64(DCM_RescaleIntercept, rescaleIntercept);
-                                fileFormat.getDataset()->findAndGetFloat64(DCM_RescaleSlope, rescaleSlope);
+                                bool slopeGood = fileFormat.getDataset()->findAndGetFloat64(DCM_RescaleIntercept, rescaleIntercept).good();
+                                bool interceptGood = fileFormat.getDataset()->findAndGetFloat64(DCM_RescaleSlope, rescaleSlope).good();
+                                if (!slopeGood)
+                                {
+                                    rescaleSlope = 1.0;
+                                }
+                                if (!interceptGood)
+                                {
+                                    rescaleIntercept = 0.0;
+                                }
+
 
                                 // Process pixel data based on bit depth
                                 if (bitsAllocated == 16)
                                 {
                                     // Get pixel representation (signed or unsigned)
                                     uint16_t pixelRepresentation = 0;
-                                    if (fileFormat.getDataset()->findAndGetUint16(DCM_PixelRepresentation, pixelRepresentation).good())
+                                     if (fileFormat.getDataset()->findAndGetUint16(DCM_PixelRepresentation, pixelRepresentation).good())
                                     {
                                         if (pixelRepresentation == 0)
                                         {
                                             // Unsigned data
                                             auto pixelValues = static_cast<const uint16_t*>(data);
-                                            for (unsigned long i = 0; i < width * height; i++)
+                                            for (unsigned long i = 0; i < count; i++)
                                             {
-                                                float hounsfield = static_cast<float>(pixelValues[i]) * rescaleSlope +
-                                                    rescaleIntercept;
+                                                float value = static_cast<float>(pixelValues[i]);
+
+                                                float hounsfield = value * rescaleSlope + rescaleIntercept;
                                                 pixelData.push_back(hounsfield);
                                             }
                                         }
@@ -480,9 +493,11 @@ namespace torch_explorer
                                         {
                                             // Signed data
                                             auto pixelValues = static_cast<const int16_t*>(data);
-                                            for (unsigned long i = 0; i < width * height; i++)
+                                            for (unsigned long i = 0; i < count; i++)
                                             {
-                                                float hounsfield = static_cast<float>(pixelValues[i]) * rescaleSlope + rescaleIntercept;
+                                                float value = static_cast<float>(pixelValues[i]);
+                                                
+                                                float hounsfield = value * rescaleSlope + rescaleIntercept;
                                                 pixelData.push_back(hounsfield);
                                             }
                                         }
