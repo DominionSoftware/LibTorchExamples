@@ -295,13 +295,15 @@ torch::jit::Module MonaiDataLoader::loadBaseModel()
 torch::Tensor MonaiDataLoader::loadDicomStudy(const std::filesystem::path& folderPath)
 {
     // Use DicomLoader to load the volume
-    torch::Tensor volume = dicomLoader_.loadDicomStudy(folderPath);
+     dicomLoader_.loadDicomStudy(folderPath);
 
 
     // Apply preprocessing for the DiNTS model
-    volume = preprocessVolume(volume);
+    //volume = preprocessVolume(volume);
 
-    return volume;
+    //return volume;
+     return torch::Tensor();
+
 }
 
 

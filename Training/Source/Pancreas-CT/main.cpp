@@ -26,8 +26,8 @@ int main(int argc,const char* argv[])
 
         auto data_folder = []()->const std::filesystem::path
             {
-                //return std::filesystem::path("D:/Projects/Pancreas-CT/manifest-1599750808610/Pancreas-CT/PANCREAS_0001/11-24-2015-PANCREAS0001-Pancreas-18957/Pancreas-99667") / "";
-                return std::filesystem::path("D:/Projects/Images/LeftToRight.dcm") / "";
+                return std::filesystem::path("D:/Projects/Pancreas-CT/manifest-1599750808610/Pancreas-CT/PANCREAS_0001/11-24-2015-PANCREAS0001-Pancreas-18957/Pancreas-99667") / "";
+                //return std::filesystem::path("D:/Projects/Images/LeftToRight.dcm") / "";
 
             };
 
@@ -82,26 +82,16 @@ int main(int argc,const char* argv[])
 
         MonaiDataLoader dataLoader(model_data, false);
 
-
-
-        // Load the MONAI model
-        auto model = dataLoader.loadBaseModel();
-
         // Load the DICOM study and preprocess for model
         std::cout << "Loading DICOM study from: " << data_path.string() << std::endl;
 
         // This loads the DICOM study into a preprocessed tensor
-        torch::Tensor volume = dataLoader.loadDicomStudy(data_path);
+        dataLoader.loadDicomStudy(data_path);
 
-        FileSaver saver(output_folder());
-
-        saver.saveAsNRRD(volume, std::filesystem::path("MONAI"), "LeftToRight.nrrd");
+        
 
 
-
-
-
-
+#ifdef FUTURE
 
         // Print volume information
         std::cout << "Loaded volume shape: [";
@@ -157,6 +147,7 @@ int main(int argc,const char* argv[])
         dataLoader.saveSegmentation(segmentation, full_output_path);
 
         std::cout << "Segmentation complete!" << std::endl;
+#endif
     }
     catch (std::exception& ex)
     {

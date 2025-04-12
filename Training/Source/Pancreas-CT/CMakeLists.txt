@@ -152,6 +152,9 @@ set(COMMON
     ../Common/JSONLoader.cpp 
     ../Common/MonaiDataLoader.h 
     ../Common/MonaiDataLoader.cpp 
+    ../Common/DicomMetaData.h 
+    ../Common/DicomImageSlice.h 
+    ../Common/DicomImageSlice.cpp 
 )
 
 set(SOURCE 
