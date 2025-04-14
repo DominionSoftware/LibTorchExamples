@@ -85,10 +85,8 @@ int main(int argc,const char* argv[])
         // Load the DICOM study and preprocess for model
         std::cout << "Loading DICOM study from: " << data_path.string() << std::endl;
 
-        // This loads the DICOM study into a preprocessed tensor
         dataLoader.loadDicomStudy(data_path);
 
-        
 
 
 #ifdef FUTURE

@@ -295,9 +295,54 @@ torch::jit::Module MonaiDataLoader::loadBaseModel()
 torch::Tensor MonaiDataLoader::loadDicomStudy(const std::filesystem::path& folderPath)
 {
     // Use DicomLoader to load the volume
-     dicomLoader_.loadDicomStudy(folderPath);
+     auto metaData = dicomLoader_.loadDicomStudy(folderPath);
 
 
+     std::cout << metaData[0].pixelSpacing_[0] << "," << metaData[0].pixelSpacing_[0] << "," << metaData[0].pixelSpacing_[0] << std::endl;
+
+     std::for_each(metaData.begin(), metaData.end(), [](DicomMetaData& md)
+         {
+             std::cout << md.imagePositionPatient_[2] << std::endl;
+         });
+
+     // Since we currently only allow Z axis slices, we sort on the Z position.
+     if (DicomLoader::isLPS(metaData[0].imageOrientationPatient_))
+     {
+         std::ranges::sort(metaData, [](DicomMetaData& a, DicomMetaData& b)->bool
+             {
+                 return a.imagePositionPatient_[2] < b.imagePositionPatient_[2];
+             }
+         );
+     }
+     else
+     {
+         std::ranges::sort(metaData, [](DicomMetaData& a, DicomMetaData& b)->bool
+             {
+                 return b.imagePositionPatient_[2] < a.imagePositionPatient_[2];
+             }
+         );
+     }
+    
+     std::for_each(metaData.begin(), metaData.end(), [](DicomMetaData& md)
+         {
+             std::cout << md.imagePositionPatient_[2] << std::endl;
+         });
+
+     // Compute the average z spacing...
+
+     std::vector<double> spacings(metaData.size() - 1);
+
+     // Calculate all adjacent differences
+     std::transform(metaData.begin() + 1, metaData.end(), metaData.begin(), spacings.begin(),
+         [](const DicomMetaData& current, const DicomMetaData& previous) -> double {
+             return std::abs(current.imagePositionPatient_[2] - previous.imagePositionPatient_[2]);
+         });
+
+     // Calculate the average
+     double sum = std::accumulate(spacings.begin(), spacings.end(), 0.0);
+     double average = sum / spacings.size();
+     std::cout << "average pixel spacing = " << average << std::endl;
+     vtkSmartPointer<vtkImageData> vtkImage = dicomLoader_.loadToVTK(metaData,average);
     // Apply preprocessing for the DiNTS model
     //volume = preprocessVolume(volume);
 

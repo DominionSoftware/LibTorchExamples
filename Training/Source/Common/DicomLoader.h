@@ -7,6 +7,7 @@
 #include <iosfwd>
 #include <tuple>
 #include <vector>
+#include <vtkImageData.h>
 #include <torch/torch.h>
 #include <dcmtk/dcmdata/dctk.h>
 #include <dcmtk/dcmimgle/dcmimage.h>
@@ -32,7 +33,9 @@ namespace torch_explorer
          * @return A tensor representing the loaded volume
          */
         std::vector<DicomMetaData> loadDicomStudy(const std::filesystem::path& folderPath);
+        vtkSmartPointer<vtkImageData> loadToVTK(const std::vector<DicomMetaData>& metaData, double majorAxisSpacing);
 
+        static bool isLPS(std::vector<double>& iop);
 
     private:
        
@@ -42,7 +45,7 @@ namespace torch_explorer
         static std::string getPatientOrientation(const std::string& filePath);
 
         static std::string getPatientOrientation(double x, double y, double z);
-        static bool isLPS(std::vector<double>& iop);
+       
         static bool isLAI(std::vector<double>& iop);
 
         static std::vector<std::string> getFullPatientOrientation(std::vector<double>& iop);

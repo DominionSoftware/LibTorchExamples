@@ -7,6 +7,8 @@
 #include <ATen/Functions.h>
 #include "DicomImageSlice.h"
 #include "DicomMetaData.h"
+#include <vtkImageData.h>
+#include <vtkSmartPointer.h>
 
 
 using namespace torch_explorer;
@@ -66,6 +68,21 @@ std::vector<DicomMetaData> DicomLoader::loadDicomStudy(const std::filesystem::pa
                     }
                 }
 
+                if (fileFormat.getDataset()->findAndGetElement(DCM_PixelSpacing, ele).good())
+                {
+                    OFVector<Float64> pixelSpacing;
+                    DcmDecimalString* dcmDs = dynamic_cast<DcmDecimalString*>(ele);
+                    if (dcmDs != nullptr)
+                    {
+                        if (dcmDs->getFloat64Vector(pixelSpacing).good())
+                        {
+                            for (size_t i = 0; i < pixelSpacing.size(); i++)
+                            {
+                                metaData.pixelSpacing_.push_back(pixelSpacing[i]);
+                            }
+                        }
+                    }
+                }
 
                 if (!fileFormat.getDataset()->findAndGetElement(DCM_ImageOrientationPatient, ele).good())
                 {
@@ -129,6 +146,100 @@ std::vector<DicomMetaData> DicomLoader::loadDicomStudy(const std::filesystem::pa
     return dicomFiles;
 }
 
+
+
+vtkSmartPointer<vtkImageData> DicomLoader::loadToVTK(const std::vector<DicomMetaData>& metaData,double majorAxisSpacing)
+{
+    vtkSmartPointer<vtkImageData> result = vtkSmartPointer<vtkImageData>::New();
+
+
+    DcmFileFormat fileFormat;
+
+    if (!fileFormat.loadFile(metaData[0].filePath_.string().c_str()).good())
+    {
+        throw std::runtime_error("Error: Cannot read DICOM file: " + metaData[0].filePath_.string());
+    }
+    DicomImageSlice firstSlice;
+
+    firstSlice.loadImage(metaData[0], metaData[0].filePath_.string(), fileFormat);
+
+    int vtkDataType = VTK_SHORT; // Default to 16-bit
+    if (firstSlice.getBitsPerPixel() == 8) {
+        vtkDataType = firstSlice.getIsSigned() ? VTK_CHAR : VTK_UNSIGNED_CHAR;
+    }
+    else if (firstSlice.getBitsPerPixel() == 16) {
+        vtkDataType = firstSlice.getIsSigned() ? VTK_SHORT : VTK_UNSIGNED_SHORT;
+    }
+    else if (firstSlice.getBitsPerPixel() == 32) {
+        vtkDataType = firstSlice.getIsSigned() ? VTK_INT : VTK_UNSIGNED_INT;
+    }
+    vtkSmartPointer<vtkImageData> imageData = vtkSmartPointer<vtkImageData>::New();
+
+    imageData->AllocateScalars(vtkDataType, firstSlice.getComponentsPerPixel());
+
+
+    imageData->SetDimensions(firstSlice.getCols(), firstSlice.getRows(), metaData.size());
+    imageData->AllocateScalars(vtkDataType, 1); // Assuming 16-bit grayscale
+
+    auto spacing = firstSlice.getSpacing();
+
+    imageData->SetSpacing(
+        spacing[0],
+        spacing[1],
+        majorAxisSpacing
+    );
+    DcmDataset* dataset = fileFormat.getDataset();
+
+    auto imagePositionPatient = firstSlice.getImagePositionPatient();
+
+    imageData->SetOrigin(
+        imagePositionPatient[0],
+        imagePositionPatient[1],
+        imagePositionPatient[2]
+    );
+
+
+    char* vtkImagePtr = static_cast<char*>(imageData->GetScalarPointer());
+
+
+    size_t sliceSize = firstSlice.getPixelSizeDataInBytes();
+    size_t totalSize = sliceSize * metaData.size();
+
+    // Copy first slice data
+    errno_t err = memcpy_s(vtkImagePtr, totalSize, firstSlice.getPixelData(), sliceSize);
+
+    if (err != 0)
+    {
+        throw std::runtime_error("Bad memcpy_s: " + std::to_string(err));
+    }
+
+
+    for (size_t idx = 1; idx < metaData.size(); ++idx)
+    {
+        DicomImageSlice slice;
+        DcmFileFormat dcmFileFormat;
+        if (!dcmFileFormat.loadFile(metaData[idx].filePath_.string().c_str()).good())
+        {
+            throw std::runtime_error("cannot load file: " + metaData[idx].filePath_.string());
+
+        }
+
+        slice.loadImage(metaData[idx], metaData[idx].filePath_.string(), dcmFileFormat);
+
+        // Copy pixel data 
+        char* slicePtr = vtkImagePtr + idx * sliceSize;
+        size_t remainingSize = totalSize - (idx * sliceSize);
+
+        err = memcpy_s(slicePtr, remainingSize, slice.getPixelData(), slice.getPixelSizeDataInBytes());
+        if (err != 0)
+        {
+            throw std::runtime_error("Bad memcpy_s: " + std::to_string(err));
+       
+        }
+
+    }
+    return imageData;
+}
 
 std::tuple<Vector3D<double>, Vector3D<double>, Vector3D<double>> DicomLoader::getImageOrientation(
     const std::string& filePath)

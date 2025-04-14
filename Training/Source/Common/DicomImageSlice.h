@@ -21,7 +21,55 @@ namespace  torch_explorer
 
         DicomImageSlice& operator=(const DicomImageSlice&) = delete;
         DicomImageSlice& operator=(const DicomImageSlice&&) = delete;
-        void loadImage(DicomMetaData& metaData, const std::string& filePath, DcmFileFormat& ff);
+        void loadImage(const DicomMetaData& metaData, const std::string& filePath, DcmFileFormat& ff);
+        int getRows() const
+        {
+            return rows_;
+        }
+
+        int getCols() const
+        {
+            return cols_;
+        }
+
+        uint16_t getBitsPerPixel() const
+        {
+            return bitsPerPixel_;
+        }
+
+        int getIsSigned() const
+        {
+            return isSigned_;
+        }
+
+        std::vector<double> getImagePositionPatient() const
+        {
+            return imagePositionPatient_;
+        }
+
+        std::vector<double> getImageOrientationPatient() const
+        {
+            return imageOrientationPatient_;
+        }
+
+        int getComponentsPerPixel() const
+        {
+            return componentsPerPixel_;
+        }
+
+        std::vector<double> getSpacing() const
+        {
+            return pixelSpacing_;
+        }
+
+        size_t getPixelSizeDataInBytes() const
+        {
+            return pixelDataSizeInBytes_;
+        }
+        void* getPixelData() const
+        {
+            return pixelData_;
+        }
 
     private:
 
@@ -41,8 +89,8 @@ namespace  torch_explorer
         double sliceThickness_;
         std::vector<double> pixelSpacing_;
         int isSigned_;
-        int width_;
-        int height_;
+        int cols_;
+        int rows_;
         uint16_t bitsPerPixel_;
         uint16_t componentsPerPixel_;
         uint16_t bitsUsedWhenWriting_;

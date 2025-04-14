@@ -8,7 +8,7 @@ using namespace torch_explorer;
 
 
 DicomImageSlice::DicomImageSlice() : rescaleSlope_(1.0), rescaleIntercept_(0.0), positionOnNormal_(0.0), spacingBetweenSlices_(1),
-                                sliceThickness_(1), isSigned_(0), width_(0), height_(0), bitsPerPixel_(0),
+                                sliceThickness_(1), isSigned_(0), cols_(0), rows_(0), bitsPerPixel_(0),
                                 componentsPerPixel_(0), pixelData_(nullptr), pixelDataSizeInBytes_(0)
 {
     
@@ -23,7 +23,7 @@ DicomImageSlice::~DicomImageSlice()
     }
 }
 
-void DicomImageSlice::loadImage(DicomMetaData& metaData,const std::string& filePath,DcmFileFormat& ff)
+void DicomImageSlice::loadImage(const DicomMetaData& metaData,const std::string& filePath,DcmFileFormat& ff)
 {
     Uint16 bitsAllocated;
     Uint16 bitsStored;
@@ -138,8 +138,8 @@ void DicomImageSlice::loadImage(DicomMetaData& metaData,const std::string& fileP
     imagePositionPatient_ = metaData.imagePositionPatient_;
     imageOrientationPatient_ = metaData.imageOrientationPatient_;
     pixelSpacing_ = metaData.pixelSpacing_;
-    width_ = cols;
-    height_ = rows;
+    cols_ = cols;
+    rows_ = rows;
     pixelData_ = buffer;
     pixelDataSizeInBytes_ = sizeInBytes;
     rescaleIntercept_ = metaData.rescaleIntercept_;

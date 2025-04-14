@@ -271,16 +271,17 @@ if(MSVC)
     endif()
 
 
-set(DEST_DIR "$<TARGET_FILE_DIR:${PROJECT_NAME}>/pathology_nuclei_segmentation_classification")
+set(DEST_DIR "$<TARGET_FILE_DIR:${PROJECT_NAME}>/wholeBody_ct_segmentation")
 
 if(NOT EXISTS ${DEST_DIR})
 
-    install(DIRECTORY "${CMAKE_SOURCE_DIR}/../PreTrainedModels/pathology_nuclei_segmentation_classification"
+    install(DIRECTORY "${CMAKE_SOURCE_DIR}/../PreTrainedModels/wholeBody_ct_segmentation"
         DESTINATION "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
         OPTIONAL) 
+    message(STATUS "wholeBody_ct_segmentation models being installed")
 
  else()
-   message(STATUS "pathology_nuclei_segmentation_classification models installed")
+   message(STATUS "wholeBody_ct_segmentation models already installed")
 endif()
 
 
