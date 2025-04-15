@@ -47,6 +47,9 @@ namespace torch_explorer {
 
         // Load a DICOM study and preprocess it for the model
         torch::Tensor loadDicomStudy(const std::filesystem::path& folderPath);
+        torch::Tensor preprocessCTScan(vtkSmartPointer<vtkImageData> ctScan);
+        vtkSmartPointer<vtkImageData> resizeCT(vtkSmartPointer<vtkImageData> input, double spacing, std::array<int, 3> size);
+        static vtkSmartPointer<vtkImageData> rescaleCT(vtkSmartPointer<vtkImageData> input, double min, double max);
 
         // Extract features from a volume using the model
         torch::Tensor extractFeatures(torch::jit::Module& model, torch::Tensor& volume);

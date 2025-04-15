@@ -31,7 +31,7 @@ std::vector<DicomMetaData> DicomLoader::loadDicomStudy(const std::filesystem::pa
             if (fileFormat.loadFile(entry.path().string().c_str()).good())
             {
                 DicomMetaData metaData;
-
+                metaData.filePath_ = entry.path();
                 OFString studyUID;
                 if (!fileFormat.getDataset()->findAndGetOFString(DCM_StudyInstanceUID, studyUID).good())
                 {

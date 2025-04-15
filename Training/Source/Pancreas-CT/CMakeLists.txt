@@ -268,8 +268,17 @@ if(MSVC)
                           COMMAND ${CMAKE_COMMAND} -E copy_if_different
                           "${PNG_DLL_DIR}/libpng16.dll"
                           $<TARGET_FILE_DIR:${PROJECT_NAME}>)
+
     endif()
 
+    set(VTK_DLLS_DIR "D:/Projects/vtk941.ins/bin")
+
+    file(GLOB VTL_DLLS "${VTK_DLLS_DIR}/*.dll")
+        add_custom_command(TARGET ${PROJECT_NAME}
+                          POST_BUILD
+                          COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                          ${VTL_DLLS}
+                          $<TARGET_FILE_DIR:${PROJECT_NAME}>)
 
 set(DEST_DIR "$<TARGET_FILE_DIR:${PROJECT_NAME}>/wholeBody_ct_segmentation")
 

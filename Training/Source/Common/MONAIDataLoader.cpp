@@ -2,6 +2,12 @@
 #include <torch/torch.h>
 #include <algorithm>
 
+#include "FileSaver.h"
+#include "vtkImageResample.h"
+#include "vtkImageThreshold.h"
+#include "vtkImageShiftScale.h"
+
+
 using namespace torch_explorer;
 
 MonaiDataLoader::MonaiDataLoader(const std::filesystem::path& bundlePath, bool trainMode)
@@ -342,46 +348,113 @@ torch::Tensor MonaiDataLoader::loadDicomStudy(const std::filesystem::path& folde
      double sum = std::accumulate(spacings.begin(), spacings.end(), 0.0);
      double average = sum / spacings.size();
      std::cout << "average pixel spacing = " << average << std::endl;
-     vtkSmartPointer<vtkImageData> vtkImage = dicomLoader_.loadToVTK(metaData,average);
-    // Apply preprocessing for the DiNTS model
-    //volume = preprocessVolume(volume);
+     vtkSmartPointer<vtkImageData> image = dicomLoader_.loadToVTK(metaData,average);
+     vtkSmartPointer<vtkImageData> rescaledImage = rescaleCT(image, 250, 3000);
+
+     vtkSmartPointer<vtkImageData> resampledImage = resizeCT(rescaledImage, 1.5, { 96,96,96 });
+
+     FileSaver saver("D:\\Projects\\Pancreas-CT.bin\\RelWithDebInfo");
+
+     saver.saveAsMHA(resampledImage, "images", "scaledAndResampled.mha");
+
+     
 
     //return volume;
      return torch::Tensor();
 
 }
 
-
-torch::Tensor MonaiDataLoader::preprocessVolume(const torch::Tensor& volume)
+vtkSmartPointer<vtkImageData> MonaiDataLoader::resizeCT(vtkSmartPointer<vtkImageData> input, double spacing, std::array<int,3> size)
 {
-    // Apply intensity scaling according to MONAI preprocessing parameters
-    torch::Tensor scaled = applyIntensityScaling(volume);
 
-    // Ensure the volume has the correct data type
-    torch::Tensor result = scaled.to(torch::kFloat32);
+    int inputDims[3];
+    input->GetDimensions(inputDims);
+    double inputSpacing[3];
+    input->GetSpacing(inputSpacing);
+    double inputOrigin[3];
+    input->GetOrigin(inputOrigin);
+    double newSpacing[3] = { spacing, spacing, spacing };
+    vtkSmartPointer<vtkImageResample> resample = vtkSmartPointer<vtkImageResample>::New();
+    resample->SetInputData(input);
+    resample->SetDimensionality(3);
+    resample->SetOutputSpacing(newSpacing);
+    double newOrigin[3];
+    for (int i = 0; i < 3; i++) {
+        // Center the resized volume
+        newOrigin[i] = inputOrigin[i] + 0.5 * (inputDims[i] * inputSpacing[i] - size[i] * spacing);
+    }
 
-    return result;
+    resample->SetOutputOrigin(newOrigin);
+    resample->SetOutputExtent(0, size[0] - 1, 0, size[1] - 1, 0, size[2] - 1);
+
+    // Use linear interpolation for medical images
+    resample->SetInterpolationModeToLinear();
+    resample->Update();
+
+    return resample->GetOutput();
+
 }
+
+
+vtkSmartPointer<vtkImageData> MonaiDataLoader::rescaleCT(vtkSmartPointer<vtkImageData> input, double min, double max)
+{
+    constexpr double airHU = -1000.0;
+
+    vtkSmartPointer<vtkImageThreshold> thresholder = vtkSmartPointer<vtkImageThreshold>::New();
+    thresholder->SetInputData(input);
+    thresholder->ThresholdBetween(min, max);
+    thresholder->SetOutValue(airHU);
+    thresholder->SetInValue(0);
+    thresholder->ReplaceInOff();           
+    thresholder->ReplaceOutOn();           
+    thresholder->SetOutputScalarTypeToFloat();
+    vtkSmartPointer<vtkImageShiftScale> scaler = vtkSmartPointer<vtkImageShiftScale>::New();
+    scaler->SetInputConnection(thresholder->GetOutputPort());
+    scaler->SetOutputScalarTypeToFloat();
+    scaler->SetShift(-airHU);
+    scaler->SetScale(1.0 / (max - airHU));
+    scaler->Update();
+
+    return scaler->GetOutput();
+
+}
+torch::Tensor MonaiDataLoader::preprocessCTScan(vtkSmartPointer<vtkImageData> ctScan)
+{
+
+    vtkSmartPointer<vtkImageData> rescaledImage = rescaleCT(ctScan, 250, 3000);
+
+    vtkSmartPointer<vtkImageData> resampledImage = resizeCT(rescaledImage, 1.5, { 96,96,96 });
+
+   
+    // 5. Create a torch tensor from the buffer
+    int* dims = resampledImage->GetDimensions();
+    float* buffer = static_cast<float*>(resampledImage->GetScalarPointer());
+
+    auto options = torch::TensorOptions().dtype(torch::kFloat32).device(torch::kCPU);
+
+
+    torch::Tensor volumeTensor = torch::from_blob(
+        buffer,
+        { dims[2], dims[1], dims[0] },  // PyTorch uses [D, H, W] while VTK uses [W, H, D]
+        options
+    ).clone();
+
+
+    volumeTensor = volumeTensor.unsqueeze(0).unsqueeze(0);  // Shape becomes [1, 1, D, H, W]
+
+    volumeTensor = volumeTensor.contiguous();
+
+    std::cout << "Final tensor shape: " << volumeTensor.sizes() << std::endl;
+
+    return volumeTensor;
+}
+
 
 
 torch::Tensor MonaiDataLoader::inference(torch::Tensor& volume)
 {
-    torch::NoGradGuard noGrad;
-
-    torch::Device device(torch::kCPU);
-    if (torch::cuda::is_available())
-    {
-        device = torch::Device(torch::kCUDA);
-    }
-
-
-    torch::jit::Module model = loadBaseModel();
-    model.to(device);
-    model.eval();
-    torch::Tensor vol = volume.to(device);
-    torch::Tensor segmentation = slidingWindowInference(volume, model);
-    segmentation = segmentation.to(torch::kCPU);
-    return segmentation;
+   
+    return torch::Tensor();
 }
 
 

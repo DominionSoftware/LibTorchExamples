@@ -10,7 +10,7 @@
 #include <itkImageFileWriter.h>
 #include <itkImageRegionIterator.h>
 #include <itkNrrdImageIO.h>       
-
+#include <vtkMetaImageWriter.h>
 
 using namespace torch_explorer;
 
@@ -20,7 +20,7 @@ FileSaver::FileSaver(const std::filesystem::path& directory) : path_(directory)
 
 }
 
-bool FileSaver::saveAsPNG(const torch::Tensor& tensor,const std::filesystem::path& subDirs,const std::string& filename)
+bool FileSaver::saveAsPNG(const torch::Tensor& tensor,const std::filesystem::path& subDirs,const std::string& filename) const
 {
 	auto cpu_tensor = tensor.to(torch::kCPU);
 
@@ -95,7 +95,7 @@ bool FileSaver::saveAsPNG(const torch::Tensor& tensor,const std::filesystem::pat
 
 }
 
-bool FileSaver::saveAsNRRD(const torch::Tensor& tensor, const std::filesystem::path& subDirs, const std::string& filename)
+bool FileSaver::saveAsNRRD(const torch::Tensor& tensor, const std::filesystem::path& subDirs, const std::string& filename) const
 {
     // Ensure tensor is on CPU and convert to contiguous memory layout
     auto cpu_tensor = tensor.to(torch::kCPU).contiguous();
@@ -218,4 +218,27 @@ bool FileSaver::saveAsNRRD(const torch::Tensor& tensor, const std::filesystem::p
 
     std::cout << "Successfully saved NRRD file to: " << localPath.string() << std::endl;
     return true;
+}
+
+
+void FileSaver::saveAsMHA(vtkSmartPointer<vtkImageData> image, const std::filesystem::path& subDirs, const std::string& filename) const
+{
+    // Construct the full path by combining path_, subDirs, and filename
+    std::filesystem::path fullPath = path_ / subDirs / (filename + ".mha");
+
+    // Create the directory structure if it doesn't exist
+    std::filesystem::create_directories(fullPath.parent_path());
+
+    // Create a writer for the MetaImage format (.mha)
+    vtkSmartPointer<vtkMetaImageWriter> writer = vtkSmartPointer<vtkMetaImageWriter>::New();
+
+    // Set the input image data
+    writer->SetInputData(image);
+
+    // Set the filename for the output
+    writer->SetFileName(fullPath.string().c_str());
+
+
+    // Write the file to disk
+    writer->Write();
 }
