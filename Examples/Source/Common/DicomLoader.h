@@ -13,7 +13,7 @@
 #include <dcmtk/dcmimgle/dcmimage.h>
 #include <dcmtk/dcmdata/dcdatset.h>
 #include "Vector3D.h"
-#include <eigen/Eigen>
+#include <Eigen/Dense>
 
 #include "DicomMetaData.h"
 

@@ -1,7 +1,7 @@
 #include "MONAIDataLoader.h"
 #include <torch/torch.h>
 #include <algorithm>
-
+#include <ranges>
 #include "FileSaver.h"
 #include "vtkImageResample.h"
 #include "vtkImageThreshold.h"

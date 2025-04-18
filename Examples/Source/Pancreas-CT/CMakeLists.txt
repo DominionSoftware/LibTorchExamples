@@ -1,10 +1,73 @@
 cmake_minimum_required(VERSION 3.18)
 
 
+set(CMAKE_CUDA_ARCHITECTURES 86)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Set CUDA compiler path only on Linux
+if(UNIX AND NOT APPLE)
+  set(LINUX True)
+  set(CMAKE_CUDA_COMPILER /usr/local/cuda-12.6/bin/nvcc)
+endif()
+
+
 project(PANCREAS-CT LANGUAGES CXX CUDA)
 
 if(MSVC)
-    add_compile_options(/std:c++20 /Zc:__cplusplus)
+    add_compile_options(/Zc:__cplusplus)
+endif()
+
+
+if(LINUX)
+    set(PNG_PNG_INCLUDE_DIR "/home/rickfrank/Documents/projects/libpng-install/include")
+    set(PNG_LIBRARY_RELEASE "/home/rickfrank/Documents/projects/libpng-install/lib64/libpng.a")
+    
+    set(CUDNN_ROOT_DIR "/usr")
+    set(CUDNN_INCLUDE_DIR "/usr/include")
+    set(CUDNN_INCLUDE_PATH "/usr/include")
+
+
+    set(CUDNN_LIBRARY "/usr/lib64/libcudnn.so.9")
+    set(CUDNN_LIBRARY_PATH "${CUDNN_LIBRARY}")
+
+    set(TorchVision_DIR "/home/rickfrank/Documents/projects/vision-install/share/cmake/TorchVision")
+    set(LIBTORCHPATH "/home/rickfrank/Documents/projects/libtorch-cxx11-abi-shared-with-deps-2.6.0+cu126/libtorch")
+    set(CMAKE_PREFIX_PATH ${LIBTORCHPATH})
+
+
+    set(Torch_DIR "${LIBTORCHPATH}/share/cmake/Torch/")
+
+
+    set(CUDA_TOOLKIT_ROOT_DIR "/usr/local/cuda-12.6")
+    set(nvtx3_dir "${CUDA_TOOLKIT_ROOT_DIR}/include/nvtx3")
+    set(USE_NVTX ON CACHE BOOL "Use NVTX" FORCE)
+    
+     
+    set(OpenCV_DIR "/home/rickfrank/Documents/projects/opencv-install/lib64/cmake/opencv4")
+    set(nlohmann_json_DIR "/home/rickfrank/Documents/projects/json-install/share/cmake/nlohmann_json")
+    set(ITK_DIR "/home/rickfrank/Documents/projects/itk-5.4.3-install/lib/cmake/ITK-5.4")
+    set(VTK_DIR "/home/rickfrank/Documents/projects/VTK-9.4.2-install/lib64/cmake/vtk-9.4")
+    set(DCMTK_DIR "/home/rickfrank/Documents/projects/dcmtk-install/lib64/cmake/dcmtk")
+ 
+    set(CMAKE_PREFIX_PATH "/home/rickfrank/Documents/projects/eigen-3.4.0-install" ${CMAKE_PREFIX_PATH})
+    find_package(Eigen3 REQUIRED)
+
+    # Find VTK package
+    find_package(VTK 9.4 COMPONENTS 
+                  CommonColor
+                  CommonCore
+                  IOImage
+                  FiltersSources
+                  InteractionStyle
+                  InteractionWidgets
+                  RenderingContextOpenGL2
+                  RenderingCore
+                  RenderingFreeType
+                  RenderingGL2PSOpenGL2
+                  RenderingOpenGL2
+                ) 
 endif()
 
 
@@ -58,7 +121,8 @@ if(WIN32)
                   RenderingGL2PSOpenGL2
                   RenderingOpenGL2
                 ) 
-
+      set(Eigen3_DIR "D:/Projects/eigen.ins/share/eigen3/cmake")
+      find_package(Eigen3 REQUIRED)
 
 	
    
@@ -150,11 +214,12 @@ set(COMMON
     ../Common/DicomLoader.cpp 
     ../Common/JSONLoader.h 
     ../Common/JSONLoader.cpp 
-    ../Common/MonaiDataLoader.h 
-    ../Common/MonaiDataLoader.cpp 
+    ../Common/MONAIDataLoader.h 
+    ../Common/MONAIDataLoader.cpp 
     ../Common/DicomMetaData.h 
     ../Common/DicomImageSlice.h 
     ../Common/DicomImageSlice.cpp 
+    ../Common/SafeCopy.h 
 )
 
 set(SOURCE 
@@ -174,6 +239,12 @@ add_executable(${PROJECT_NAME}
     ${COMMON}
 )
 
+if(LINUX)
+  set_target_properties(PANCREAS-CT PROPERTIES
+    INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib;/home/rickfrank/Documents/projects/libtorch-cxx11-abi-shared-with-deps-2.6.0+cu126/libtorch/lib"
+    BUILD_WITH_INSTALL_RPATH TRUE
+  )
+endif()
 
 set(DCMTK_LIBS
     DCMTK::ofstd
@@ -207,12 +278,17 @@ set(DCMTK_LIBS
     DCMTK::dcmect
 
 )
+set(COMMON_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../Common)
 
+message(STATUS "Eigen include dir: ${EIGEN3_INCLUDE_DIRS}")
+
+include_directories(${COMMON_INCLUDES})
 if(USE_CUDNN)
-    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${OpenCV_INCLUDE_DIRS} ${COMMON} ${TorchVision_INCLUDE_DIR} ${CUDNN_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR} ${DCMTK_INCLUDE_DIRS} ${nlohmann_json_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
+ 
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${OpenCV_INCLUDE_DIRS} ${TorchVision_INCLUDE_DIR} ${CUDNN_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR} ${DCMTK_INCLUDE_DIRS} ${nlohmann_json_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
     target_link_libraries(${PROJECT_NAME} PRIVATE "${TORCH_LIBRARIES}" ${CUDNN_LIBRARY} ${TorchVision_LIBRARIES} ${OpenCV_LIBRARIES} PNG::PNG ${DCMTK_LIBS} nlohmann_json::nlohmann_json ${VTK_LIBRARIES} ${ITK_LIBRARIES})
 else()
-    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}  ${OpenCV_INCLUDE_DIRS} ${COMMON} {TorchVision_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR} ${DCMTK_INCLUDE_DIRS} ${nlohmann_json_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
+    target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}  ${OpenCV_INCLUDE_DIRS} {TorchVision_INCLUDE_DIR} ${PNG_PNG_INCLUDE_DIR} ${DCMTK_INCLUDE_DIRS} ${nlohmann_json_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS})
     target_link_libraries(${PROJECT_NAME} "${TORCH_LIBRARIES}"  ${TorchVision_LIBRARIES} ${OpenCV_LIBRARIES} PNG::PNG ${DCMTK_LIBS} nlohmann_json::nlohmann_json ${VTK_LIBRARIES} ${ITK_LIBRARIES})
 
 endif(USE_CUDNN)

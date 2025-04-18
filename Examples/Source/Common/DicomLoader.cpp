@@ -9,6 +9,7 @@
 #include "DicomMetaData.h"
 #include <vtkImageData.h>
 #include <vtkSmartPointer.h>
+#include "SafeCopy.h"
 
 
 using namespace torch_explorer;
@@ -206,12 +207,7 @@ vtkSmartPointer<vtkImageData> DicomLoader::loadToVTK(const std::vector<DicomMeta
     size_t totalSize = sliceSize * metaData.size();
 
     // Copy first slice data
-    errno_t err = memcpy_s(vtkImagePtr, totalSize, firstSlice.getPixelData(), sliceSize);
-
-    if (err != 0)
-    {
-        throw std::runtime_error("Bad memcpy_s: " + std::to_string(err));
-    }
+    safe::memcpy(vtkImagePtr, totalSize, firstSlice.getPixelData(), sliceSize);
 
 
     for (size_t idx = 1; idx < metaData.size(); ++idx)
@@ -230,12 +226,7 @@ vtkSmartPointer<vtkImageData> DicomLoader::loadToVTK(const std::vector<DicomMeta
         char* slicePtr = vtkImagePtr + idx * sliceSize;
         size_t remainingSize = totalSize - (idx * sliceSize);
 
-        err = memcpy_s(slicePtr, remainingSize, slice.getPixelData(), slice.getPixelSizeDataInBytes());
-        if (err != 0)
-        {
-            throw std::runtime_error("Bad memcpy_s: " + std::to_string(err));
-       
-        }
+        safe::memcpy(slicePtr, remainingSize, slice.getPixelData(), slice.getPixelSizeDataInBytes());
 
     }
     return imageData;
@@ -334,9 +325,9 @@ bool DicomLoader::isLPS(std::vector<double>& iop)
     assert(iop.size() == 9);
 
     std::vector<std::string> orientation = getFullPatientOrientation(iop);
-    // x axis runs from patient “R”ight to “L”eft
-    // y axis runs from patient “A”nterior to “P”osterior
-    // z axis runs from patient “I”nferior to “S”uperior.
+    // x axis runs from patient ï¿½Rï¿½ight to ï¿½Lï¿½eft
+    // y axis runs from patient ï¿½Aï¿½nterior to ï¿½Pï¿½osterior
+    // z axis runs from patient ï¿½Iï¿½nferior to ï¿½Sï¿½uperior.
     return (orientation[0] == "L" && orientation[1] == "P" && orientation[2] == "S");
 }
 
@@ -346,9 +337,9 @@ bool DicomLoader::isLAI(std::vector<double>& iop)
     assert(iop.size() == 9);
 
     std::vector<std::string> orientation = getFullPatientOrientation(iop);
-    // x axis runs from patient “R”ight to “L”eft
-    // y axis runs from patient “P”osterior to “A”nterior
-    // z axis runs from patient “S”uperior to "I"nferior
+    // x axis runs from patient ï¿½Rï¿½ight to ï¿½Lï¿½eft
+    // y axis runs from patient ï¿½Pï¿½osterior to ï¿½Aï¿½nterior
+    // z axis runs from patient ï¿½Sï¿½uperior to "I"nferior
     return (orientation[0] == "L" && orientation[1] == "A" && orientation[2] == "I");
 }
 
