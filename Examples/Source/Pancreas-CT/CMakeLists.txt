@@ -21,6 +21,19 @@ endif()
 
 
 if(LINUX)
+
+# for RedHat/Rocky
+#wget https://developer.download.nvidia.com/compute/cudnn/9.8.0/local_installers/cudnn-local-repo-#rhel9-9.8.0-1.0-1.x86_64.rpmsudo rpm -i cudnn-local-repo-rhel9-9.8.0-1.0-1.x86_64.rpmsudo dnf clean #allsudo dnf -y install cudnn
+
+#To install for CUDA 11, perform the above configuration but install the CUDA 11 specific package:
+
+#sudo dnf -y install cudnn-cuda-11
+
+#To install for CUDA 12, perform the above configuration but install the CUDA 12 specific package:
+
+#sudo dnf -y install cudnn-cuda-12
+ 
+    set(CMAKE_BUILD_TYPE RelWithDebInfo)
     set(PNG_PNG_INCLUDE_DIR "/home/rickfrank/Documents/projects/libpng-install/include")
     set(PNG_LIBRARY_RELEASE "/home/rickfrank/Documents/projects/libpng-install/lib64/libpng.a")
     
@@ -47,7 +60,7 @@ if(LINUX)
      
     set(OpenCV_DIR "/home/rickfrank/Documents/projects/opencv-install/lib64/cmake/opencv4")
     set(nlohmann_json_DIR "/home/rickfrank/Documents/projects/json-install/share/cmake/nlohmann_json")
-    set(ITK_DIR "/home/rickfrank/Documents/projects/itk-5.4.3-install/lib/cmake/ITK-5.4")
+    set(ITK_DIR "/home/rickfrank/Documents/projects/ITK-5.4.3-install/lib/cmake/ITK-5.4")
     set(VTK_DIR "/home/rickfrank/Documents/projects/VTK-9.4.2-install/lib64/cmake/vtk-9.4")
     set(DCMTK_DIR "/home/rickfrank/Documents/projects/dcmtk-install/lib64/cmake/dcmtk")
  
@@ -356,8 +369,13 @@ if(MSVC)
                           ${VTL_DLLS}
                           $<TARGET_FILE_DIR:${PROJECT_NAME}>)
 
-set(DEST_DIR "$<TARGET_FILE_DIR:${PROJECT_NAME}>/wholeBody_ct_segmentation")
 
+
+endif(MSVC)
+
+set(DEST_DIR "$<TARGET_FILE_DIR:${PROJECT_NAME}>/wholeBody_ct_segmentation")
+    
+message(STATUS ${DEST_DIR})
 if(NOT EXISTS ${DEST_DIR})
 
     install(DIRECTORY "${CMAKE_SOURCE_DIR}/../PreTrainedModels/wholeBody_ct_segmentation"
@@ -369,5 +387,3 @@ if(NOT EXISTS ${DEST_DIR})
    message(STATUS "wholeBody_ct_segmentation models already installed")
 endif()
 
-
-endif(MSVC)

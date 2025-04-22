@@ -20,14 +20,19 @@ int main(int argc,const char* argv[])
 
         auto model_data_folder = []()->const std::filesystem::path
             {
-                return std::filesystem::current_path() / "RelWithDebInfo" / "pathology_nuclei_segmentation_classification" / "";
+                return std::filesystem::current_path() / "RelWithDebInfo" / "wholeBody_ct_segmentation" / "";
 
             };
 
         auto data_folder = []()->const std::filesystem::path
             {
-                return std::filesystem::path("D:/Projects/Pancreas-CT/manifest-1599750808610/Pancreas-CT/PANCREAS_0001/11-24-2015-PANCREAS0001-Pancreas-18957/Pancreas-99667") / "";
-                //return std::filesystem::path("D:/Projects/Images/LeftToRight.dcm") / "";
+                #ifdef WIN32
+                    return std::filesystem::path("D:/Projects/Pancreas-CT/manifest-1599750808610/Pancreas-CT/PANCREAS_0001/11-24-2015-PANCREAS0001-Pancreas-18957/Pancreas-99667") / "";
+                #else
+                return std::filesystem::path("/home/rickfrank/Documents/projects/Pancreas-CT/manifest-1599750808610/Pancreas-CT/PANCREAS_0001/11-24-2015-PANCREAS0001-Pancreas-18957/Pancreas-99667") / "";
+
+                #endif
+                    //return std::filesystem::path("D:/Projects/Images/LeftToRight.dcm") / "";
 
             };
 
@@ -132,7 +137,7 @@ int main(int argc,const char* argv[])
 
         std::cout << "Pancreas volume statistics:" << std::endl;
         std::cout << "  Voxel count: " << static_cast<int>(stats["voxel_count"]) << std::endl;
-        std::cout << "  Volume (mm³): " << std::fixed << std::setprecision(2) << stats["volume_mm3"] << std::endl;
+        std::cout << "  Volume (mmï¿½): " << std::fixed << std::setprecision(2) << stats["volume_mm3"] << std::endl;
         std::cout << "  Volume (ml): " << std::fixed << std::setprecision(2) << stats["volume_ml"] << std::endl;
 
         // Save the segmentation to a file

@@ -352,9 +352,12 @@ torch::Tensor MonaiDataLoader::loadDicomStudy(const std::filesystem::path& folde
      vtkSmartPointer<vtkImageData> rescaledImage = rescaleCT(image, 250, 3000);
 
      vtkSmartPointer<vtkImageData> resampledImage = resizeCT(rescaledImage, 1.5, { 96,96,96 });
-
-     FileSaver saver("D:\\Projects\\Pancreas-CT.bin\\RelWithDebInfo");
-
+    #ifdef WIN32
+        FileSaver saver("D:\\Projects\\Pancreas-CT.bin\\RelWithDebInfo");
+    #else
+        FileSaver saver("/home/rickfrank/Documents/projects/Pancreas-CT-build/RelWithDebInfo");
+    #endif
+    
      saver.saveAsMHA(resampledImage, "images", "scaledAndResampled.mha");
 
      
