@@ -358,7 +358,7 @@ torch::Tensor MonaiDataLoader::loadDicomStudy(const std::filesystem::path& folde
         FileSaver saver("/home/rickfrank/Documents/projects/Pancreas-CT-build/RelWithDebInfo");
     #endif
     
-     saver.saveAsMHA(resampledImage, "images", "scaledAndResampled.mha");
+     saver.saveAsNRRD(resampledImage, "images", "scaledAndResampled.nrrd");
 
      
 

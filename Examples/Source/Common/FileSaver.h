@@ -19,6 +19,7 @@ namespace torch_explorer
 		bool saveAsPNG(const torch::Tensor& tensor, const std::filesystem::path& subDirs, const std::string& filename) const;
 		bool saveAsNRRD(const torch::Tensor& tensor, const std::filesystem::path& subDirs, const std::string& filename) const;
 		void saveAsMHA(vtkSmartPointer<vtkImageData> image, const std::filesystem::path& subDirs, const std::string& filename) const;
+		void saveAsNRRD(vtkSmartPointer<vtkImageData> vtkImage, const std::filesystem::path& subDirs, const std::string& filename) const;
 
 	protected:
 

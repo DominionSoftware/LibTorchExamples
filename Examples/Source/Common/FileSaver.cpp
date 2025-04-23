@@ -11,6 +11,12 @@
 #include <itkImageRegionIterator.h>
 #include <itkNrrdImageIO.h>       
 #include <vtkMetaImageWriter.h>
+#include "vtkImageExport.h"
+#include "itkVTKImageImport.h"
+#include "itkImageFileWriter.h"
+#include "itkNrrdImageIO.h"
+
+
 
 using namespace torch_explorer;
 
@@ -241,4 +247,82 @@ void FileSaver::saveAsMHA(vtkSmartPointer<vtkImageData> image, const std::filesy
 
     // Write the file to disk
     writer->Write();
+}
+
+
+void FileSaver::saveAsNRRD(vtkSmartPointer<vtkImageData> vtkImage, const std::filesystem::path& subDirs, const std::string& filename) const
+{
+    // Construct the full path by combining path_, subDirs, and filename
+    std::filesystem::path fullPath = path_ / subDirs / (filename + ".nrrd");
+    
+    // Create the directory structure if it doesn't exist
+    std::filesystem::create_directories(fullPath.parent_path());
+    
+    // Determine image properties from the VTK image
+    int* dimensions = vtkImage->GetDimensions();
+    int numComponents = vtkImage->GetNumberOfScalarComponents();
+    int scalarType = vtkImage->GetScalarType();
+    
+    // Create appropriate ITK image type based on VTK image properties
+    // For simplicity, we'll use a fixed type here, but you could add logic to handle different types
+    using PixelType = float;  // Most common type, adjust if needed
+    const unsigned int Dimension = 3;  // Standard for medical images
+    using ITKImageType = itk::Image<PixelType, Dimension>;
+    
+    // Convert VTK to ITK image using the bridge
+    ITKImageType::Pointer itkImage;
+    
+    // Wrap the VTK image data in an ITK-compatible wrapper
+    vtkImageExport* exporter = vtkImageExport::New();
+    exporter->SetInputData(vtkImage);
+    exporter->Update();
+    
+    // Set up ITK importer to receive data from VTK exporter
+    using ImporterType = itk::VTKImageImport<ITKImageType>;
+    ImporterType::Pointer importer = ImporterType::New();
+    
+    // Connect the VTK exporter to the ITK importer
+    importer->SetUpdateInformationCallback(exporter->GetUpdateInformationCallback());
+    importer->SetPipelineModifiedCallback(exporter->GetPipelineModifiedCallback());
+    importer->SetWholeExtentCallback(exporter->GetWholeExtentCallback());
+    importer->SetSpacingCallback(exporter->GetSpacingCallback());
+    importer->SetOriginCallback(exporter->GetOriginCallback());
+    importer->SetScalarTypeCallback(exporter->GetScalarTypeCallback());
+    importer->SetNumberOfComponentsCallback(exporter->GetNumberOfComponentsCallback());
+    importer->SetPropagateUpdateExtentCallback(exporter->GetPropagateUpdateExtentCallback());
+    importer->SetUpdateDataCallback(exporter->GetUpdateDataCallback());
+    importer->SetDataExtentCallback(exporter->GetDataExtentCallback());
+    importer->SetBufferPointerCallback(exporter->GetBufferPointerCallback());
+    importer->SetCallbackUserData(exporter->GetCallbackUserData());
+    
+    // Now do the actual import
+    importer->Update();
+    itkImage = importer->GetOutput();
+    
+    // Create a writer for the NRRD format (.nrrd)
+    using WriterType = itk::ImageFileWriter<ITKImageType>;
+    WriterType::Pointer writer = WriterType::New();
+    
+    // Set the input image data
+    writer->SetInput(itkImage);
+    
+    // Set the filename for the output
+    writer->SetFileName(fullPath.string());
+    
+    // Use NRRD IO factory
+    writer->SetImageIO(itk::NrrdImageIO::New());
+    
+    // Write the file to disk
+    try
+    {
+        writer->Update();
+    }
+    catch (itk::ExceptionObject & error)
+    {
+        std::cerr << "Error writing NRRD file: " << error << std::endl;
+        throw;
+    }
+    
+    // Clean up
+    exporter->Delete();
 }
