@@ -3,6 +3,8 @@
 #include <dcmtk/ofstd/oftypes.h>
 
 #include "DicomMetaData.h"
+#include "SafeCopy.h"
+
 
 using namespace torch_explorer;
 
@@ -140,10 +142,21 @@ void DicomImageSlice::loadImage(const DicomMetaData& metaData,const std::string&
     pixelSpacing_ = metaData.pixelSpacing_;
     cols_ = cols;
     rows_ = rows;
-    pixelData_ = buffer;
     pixelDataSizeInBytes_ = sizeInBytes;
     rescaleIntercept_ = metaData.rescaleIntercept_;
     rescaleSlope_ = metaData.rescaleSlope_;
+
+
+    const void* pixelData = interData->getData();
+    if (pixelData == nullptr)
+    {
+        throw std::runtime_error("Failed to get pixel data from image.");
+    }
+        
+    // Copy the pixel data to our buffer
+    safe::memcpy(buffer,sizeInBytes, pixelData, sizeInBytes);
+    pixelData_ = buffer;
+
 }
 
 

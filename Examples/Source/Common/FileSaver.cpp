@@ -26,6 +26,55 @@ FileSaver::FileSaver(const std::filesystem::path& directory) : path_(directory)
 
 }
 
+bool FileSaver::saveAsPNG(int16_t * data, int64_t height, int64_t width, int64_t channels,
+    std::filesystem::path& path)
+   {
+       FILE* fp = fopen(path.string().c_str(), "wb");
+       if (!fp)
+       {
+           return false;
+       }
+       png_structp png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+       if (!png_ptr)
+       {
+           fclose(fp);
+           return false;
+       }
+       png_infop info_ptr = png_create_info_struct(png_ptr);
+       if (!info_ptr)
+       {
+           png_destroy_write_struct(&png_ptr, nullptr);
+           fclose(fp);
+           return false;
+       }
+       
+       png_init_io(png_ptr, fp);
+       png_set_IHDR(png_ptr, info_ptr, width, height, 16,
+           PNG_COLOR_TYPE_GRAY, PNG_INTERLACE_NONE,
+           PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+       
+       // Set up byte order (endianness)
+       png_set_swap(png_ptr);
+       
+       png_write_info(png_ptr, info_ptr);
+       
+       // Allocate memory for row pointers
+       png_bytep* row_pointers = new png_bytep[height];
+       for (int64_t y = 0; y < height; y++)
+       {
+           row_pointers[y] = reinterpret_cast<png_bytep>(&data[y * width]);
+       }
+       
+       // Write the image data
+       png_write_image(png_ptr, row_pointers);
+       png_write_end(png_ptr, nullptr);
+       
+       // Cleanup
+       delete[] row_pointers;
+       png_destroy_write_struct(&png_ptr, &info_ptr);
+       fclose(fp);
+       return true;
+   }
 bool FileSaver::saveAsPNG(const torch::Tensor& tensor,const std::filesystem::path& subDirs,const std::string& filename) const
 {
 	auto cpu_tensor = tensor.to(torch::kCPU);

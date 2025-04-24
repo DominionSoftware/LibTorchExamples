@@ -15,6 +15,7 @@ namespace torch_explorer
 		FileSaver() = delete;
 
 		explicit FileSaver(const std::filesystem::path& directory);
+		bool saveAsPNG(int16_t * data, int64_t height, int64_t width, int64_t channels,std::filesystem::path& path);
 
 		bool saveAsPNG(const torch::Tensor& tensor, const std::filesystem::path& subDirs, const std::string& filename) const;
 		bool saveAsNRRD(const torch::Tensor& tensor, const std::filesystem::path& subDirs, const std::string& filename) const;
